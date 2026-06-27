@@ -1,2368 +1,657 @@
 import QtQuick 2.15
-import QtQuick.Controls.Basic 2.15
+import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Window 2.15
 
 ApplicationWindow {
     id: win
     visible: true
-    width: 1100
-    height: 720
-    minimumWidth: 860
-    minimumHeight: 560
-    flags: Qt.FramelessWindowHint | Qt.Window
+    width: 1300; height: 850
+    minimumWidth: 820; minimumHeight: 520
+    flags: Qt.FramelessWindowHint | Qt.Window | Qt.WindowMinMaxButtonsHint
     color: "transparent"
 
-    // ══════════════════════════════════════
-    //  THEME & COLORS (QQ-inspired palette)
-    // ══════════════════════════════════════
-    property string th: "light"
-    property bool darkMode: false
+    property int themeMode: 2
+    property string acc: "#6366F1"
+    property bool dark: themeMode === 1
+    function clt(light, dk) { return dark ? dk : light }
 
-    // Core colors - light theme (QQ NT style)
-    property color cBg:        "#F5F6F7"
-    property color cSidebarBg: "#EBEDF0"
-    property color cListBg:    "#FFFFFF"
-    property color cChatBg:    "#F5F6F7"
-    property color cHeaderBg:  "#FFFFFF"
-    property color cInputBg:   "#FFFFFF"
+    readonly property color bg1: clt("#EEF2FF","#080C1A")
+    readonly property color bg2: clt("#F5F7FF","#0B1020")
+    readonly property color bg3: clt("#E8EDFC","#060A16")
+    readonly property color sideBg: clt("#E2E8F8","#060A14")
+    readonly property color cardBg: clt("#FFFFFF","#0D1324")
+    readonly property color cardBg2: clt("#F8FAFD","#0F1628")
+    readonly property color text1: clt("#1A1C2E","#E4E8F4")
+    readonly property color text2: clt("#5B6080","#8A94B8")
+    readonly property color text3: clt("#9BA0B8","#5A6280")
+    readonly property color bd1: clt("#D8DDF0","#1A2240")
+    readonly property color bd2: clt("#E5EAF8","#1E2848")
+    readonly property color hover: clt("#EAF0FF","#151E35")
+    readonly property color select: clt("#DDE6FF","#192848")
+    readonly property color accent2: "#818CF8"
+    readonly property color accent3: "#A78BFA"
+    readonly property color accent4: "#06B6D4"
+    readonly property color green: "#10B981"
+    readonly property color red: "#EF4444"
+    readonly property color orange: "#F59E0B"
 
-    // Accent & semantic
-    property color cPrimary:   "#1677FF"       // QQ blue
-    property color cPrimaryHover:"#4096FF"
-    property color cPrimaryLight:"#E8F3FF"
-    property color cSuccess:   "#00B42A"
-    property color cWarning:   "#FF7D00"
-    property color cDanger:    "#F53F3F"
-    property color cInfo:      "#86909C"
+    function nameColor(c) {
+        var m = {"Red":"#FF3B30","Orange":"#FF9500","Green":"#10B981","Blue":"#3B82F6","Brown":"#A2845E","Purple":"#8B5CF6","Gray":"#8E8E93"}
+        return m[c] || text1
+    }
 
-    // Text colors
-    property color cText1:     "#1D2129"       // primary text
-    property color cText2:     "#4E5969"       // secondary
-    property color cText3:     "#86909C"       // placeholder/hint
-    property color cText4:     "#C9CDD4"       // disabled
-
-    // Border & divider
-    property color cBorder:    "#E5E6EB"
-    property color cDivider:   "#F2F3F5"
-    property color cHover:     "#F7F8FA"
-
-    // Bubble colors
-    property color cBubbleMe:  "#1677FF"
-    property color cBubbleOther:"#FFFFFF"
-    property color cBubbleMeText:"#FFFFFF"
-    property color cBubbleOtherText:"#1D2129"
-
-    // Background customization
-    property string bgType: "solid"           // "solid" | "gradient" | "image"
-    property color bgSolidColor: "#F5F6F7"
-    property color bgGradientStart: "#E8EEFE"
-    property color bgGradientEnd: "#F5F0F0"
-    property string bgImageUrl: ""
-    property real bgOpacity: 1.0
-
-    // State properties
-    property var chatList: []
-    property var msgs: []
     property string curUid: ""
     property string curName: ""
+    property string curColor: ""
     property string myUid: ""
     property string myName: ""
+    property string wsStat: "offline"
     property bool aiOn: false
-    property string kw: "zhl重要信息"
-    property string curMode: "class"
-    property var modeList: []
-    property string wsStat: "disconnected"
-    property string svrUrl: ""
-    property int svrRem: 0
-    property int svrTot: 0
-    property bool svrOk: true
-    property bool sAllow: false
-    property bool notifyOn: true
-    property bool soundOn: true
-    property string searchKw: ""
-    property var searchResults: []
-    property bool searching: false
-    property string soundFile: ""
-    property int navIdx: 0
+    property int favMode: 0
+    property var chatList: []
+    property int listVer: 0
+    property bool loading: false
+    property bool useDefaultAI: true
+    property string customApiUrl: ""
+    property string customApiKey: ""
+    property string customApiModel: ""
+    property string customSysPrompt: ""
+    property string sysPrompt: ""
+    property string qTemplate: ""
+    property var favList: []
+    property var pinList: []
+    property var msgs: []
+    property int msgPage: -1
+    property bool hasMore: false
+    property bool msgLoading: false
+    property bool showList: true
+    property int nextLoadPage: -1
+    property int serverRem: 50
+    property int serverTotal: 50
+    property string profUid: ""
+    property string profName: ""
+    property string notifSoundFile: ""
+    property bool notifSoundEnabled: true
+    property string notifSoundType: "system"
+    property bool notifPopupEnabled: true
+    property string notifPopupMode: "ai"
+    property string popupPrefix: ""
+    property string popupSuffix: ""
+    property string keyword: "zhl重要信息"
 
-    // Animation helper durations
-    property int animFast: 150
-    property int animNormal: 250
-    property int animSlow: 400
-
-    // ══════════════════════════════════════
-    //  THEME SYSTEM (Multiple themes)
-    // ══════════════════════════════════════
-    property string currentTheme: "blue"
-    property var themes: ({})
-    
-    function applyTheme(themeName) {
-        if (themeName === "blue") {
-            cBg = "#F5F6F7"; cSidebarBg = "#EBEDF0"; cListBg = "#FFFFFF"; cChatBg = "#F5F6F7";
-            cHeaderBg = "#FFFFFF"; cInputBg = "#FFFFFF"; cPrimary = "#1677FF"; cPrimaryHover = "#4096FF";
-            cPrimaryLight = "#E8F3FF"; cBubbleMe = "#1677FF"; cBubbleOther = "#FFFFFF";
-            cText1 = "#1D2129"; cText2 = "#4E5969"; cText3 = "#86909C"; cText4 = "#C9CDD4";
-            cBorder = "#E5E6EB"; cDivider = "#F2F3F5"; cHover = "#F7F8FA";
-        } else if (themeName === "dark") {
-            cBg = "#1A1A1A"; cSidebarBg = "#252525"; cListBg = "#2D2D2D"; cChatBg = "#1A1A1A";
-            cHeaderBg = "#2D2D2D"; cInputBg = "#2D2D2D"; cPrimary = "#1677FF"; cPrimaryHover = "#4096FF";
-            cPrimaryLight = "#1A3A5C"; cBubbleMe = "#1677FF"; cBubbleOther = "#2D2D2D";
-            cText1 = "#E5E6EB"; cText2 = "#A0A0A0"; cText3 = "#6B6B6B"; cText4 = "#4A4A4A";
-            cBorder = "#3A3A3A"; cDivider = "#2A2A2A"; cHover = "#353535";
-        } else if (themeName === "pink") {
-            cBg = "#FFF0F5"; cSidebarBg = "#FFE4E9"; cListBg = "#FFFFFF"; cChatBg = "#FFF0F5";
-            cHeaderBg = "#FFFFFF"; cInputBg = "#FFFFFF"; cPrimary = "#FF6B9D"; cPrimaryHover = "#FF8FB3";
-            cPrimaryLight = "#FFE4E9"; cBubbleMe = "#FF6B9D"; cBubbleOther = "#FFFFFF";
-        } else if (themeName === "green") {
-            cBg = "#F0FDF4"; cSidebarBg = "#E8F5E9"; cListBg = "#FFFFFF"; cChatBg = "#F0FDF4";
-            cHeaderBg = "#FFFFFF"; cInputBg = "#FFFFFF"; cPrimary = "#00B42A"; cPrimaryHover = "#34D058";
-            cPrimaryLight = "#E8F5E9"; cBubbleMe = "#00B42A"; cBubbleOther = "#FFFFFF";
-        } else if (themeName === "purple") {
-            cBg = "#F9F0FF"; cSidebarBg = "#F0E6FF"; cListBg = "#FFFFFF"; cChatBg = "#F9F0FF";
-            cHeaderBg = "#FFFFFF"; cInputBg = "#FFFFFF"; cPrimary = "#8B5CF6"; cPrimaryHover = "#A78BFA";
-            cPrimaryLight = "#F0E6FF"; cBubbleMe = "#8B5CF6"; cBubbleOther = "#FFFFFF";
+    function toast(m) { tt.text = m; ta.restart() }
+    function reloadCfg() {
+        var c = JSON.parse(bridge.getConfig())
+        myUid = c.luogu ? (c.luogu.user_id || "") : ""
+        themeMode = c.theme ? (c.theme.mode || 2) : 2
+        acc = c.theme ? (c.theme.accent || "#6366F1") : "#6366F1"
+        favList = c.favorites || []
+        pinList = c.pins || []
+        aiOn = c.ai ? (c.ai.enabled || false) : false
+        useDefaultAI = c.ai ? (c.ai.default !== false) : true
+        sysPrompt = c.ai ? (c.ai.system_prompt || "") : ""
+        qTemplate = c.ai ? (c.ai.question_template || "") : ""
+        keyword = c.ai ? (c.ai.important_keyword || "zhl重要信息") : "zhl重要信息"
+        if (c.ai && c.ai.custom) {
+            customApiUrl = c.ai.custom.base_url || ""
+            customApiKey = c.ai.custom.api_key || ""
+            customApiModel = c.ai.custom.model || ""
+            customSysPrompt = c.ai.custom.custom_system_prompt || ""
         }
-        currentTheme = themeName;
-        try { bridge.setTheme(themeName); } catch(e) {}
+        if (c.notification) {
+            notifSoundEnabled = c.notification.sound_enabled !== false
+            notifSoundType = c.notification.sound_type || "system"
+            notifSoundFile = c.notification.sound_file || ""
+            notifPopupEnabled = c.notification.enabled !== false
+            notifPopupMode = c.notification.popup_mode || "ai"
+            popupPrefix = c.notification.popup_prefix || ""
+            popupSuffix = c.notification.popup_suffix || ""
+        }
     }
-    
-    function loadTheme() {
+
+    function refreshListData(j) {
         try {
-            var theme = bridge.getTheme();
-            if (theme) applyTheme(theme);
-        } catch(e) {}
-    }
-
-
-
-    // ══════════════════════════════════════
-    //  UTILITY FUNCTIONS
-    // ══════════════════════════════════════
-
-    // 填充账号字段
-    function _refillAccountFields() {
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            uidFld.text = c.luogu ? (c.luogu.user_id || "") : "";
-            cookieFld.text = c.luogu ? (c.luogu.cookie || "") : "";
-        } catch(e) {}
-    }
-        function _abg(n) {
-        var cs = ["#1677FF","#F53F3F","#722ED1","#00B42A","#FF7D00","#14C9C9","#F53F3F","#3491FA","#0FC6C2","#86909C"];
-        var h = 0;
-        var nn = n || "";
-        for (var i = 0; i < nn.length; i++) h += nn.charCodeAt(i);
-        return cs[Math.abs(h) % cs.length];
-    }
-    function _ft(ts) {
-        if (!ts) return "";
-        var d = new Date(ts * 1000), now = new Date();
-        if (d.toDateString() === now.toDateString()) return Qt.formatTime(d, "HH:mm");
-        var dayCount = Math.floor((now - d) / 86400000);
-        if (dayCount === 1) return "昨天";
-        if (dayCount < 7) return Qt.formatDate(d, "ddd");
-        return Qt.formatDate(d, "MM-dd");
-    }
-    function _lc() { try { chatList = JSON.parse(bridge.getChatList() || "[]") } catch(e){} }
-    function _lu() {
-        try { var u = JSON.parse(bridge.getUserInfo() || "{}"); myName = u.name || ""; myUid = u.uid || "" }
-        catch(e){}
-    }
-    function _lch() {
-        if (!curUid) { msgs = []; return }
-        try { var d = JSON.parse(bridge.getMessages(curUid, 1) || "{}"); msgs = d.messages || [] }
-        catch(e){}
-    }
-    function _rf() { _lc(); _lu(); _lch(); }
-    function _buildModes() {
-        modeList = [];
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            var ms = (c.ai && c.ai.modes) || {};
-            var ks = Object.keys(ms);
-            for (var i = 0; i < ks.length; i++) {
-                var m = ms[ks[i]];
-                if (m) modeList.push({mid: ks[i], name: m.name || "", icon: m.icon || "", prompt: m.prompt || ""});
+            var raw = JSON.parse(j) || []
+            for (var i = 0; i < raw.length; i++) {
+                var u = String(raw[i].uid || (raw[i].user ? raw[i].user.uid : ""))
+                if (!u) u = "unknown_" + i
+                raw[i]._u = u
+                raw[i]._p = pinList.indexOf(u) >= 0
             }
-        } catch(e){}
-    }
-    function _saveCfg() {
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            if (!c.ai) c.ai = {};
-            c.ai.enabled = aiOn;
-            c.ai.current_mode = curMode;
-            c.ai.important_keyword = kw;
-            if (!c.server) c.server = {};
-            c.server.url = svrUrl;
-            if (!c.notification) c.notification = {};
-            c.notification.enabled = notifyOn;
-            c.notification.sound_enabled = soundOn;
-            if (soundFile) c.notification.sound_file = soundFile;
-            bridge.saveConfig(JSON.stringify(c));
-        } catch(e){}
-    }
-    function _doSend() {
-        if (!curUid || !msgIn.text.trim()) return;
-        bridge.sendMessage(curUid, msgIn.text.trim());
-        msgs = msgs.concat([{
-            id: "local_" + Date.now(),
-            content: msgIn.text.trim(),
-            time: Math.floor(Date.now() / 1000),
-            sender_uid: myUid,
-            sender_name: myName,
-            is_me: true
-        }]);
-        msgIn.text = "";
-    }
-    function _doSearch() {
-        if (!searchKw.trim()) { searchResults = []; return; }
-        searching = true;
-        try { searchResults = JSON.parse(bridge.searchUsers(searchKw.trim()) || "[]") }
-        catch(e){ searchResults = []; }
-        searching = false;
-    }
-    function _relogin() {
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            if (typeof uidFld !== "undefined") uidFld.text = (c.luogu && c.luogu.user_id) || "";
-            if (typeof cookieFld !== "undefined") cookieFld.text = (c.luogu && c.luogu.cookie) || "";
-        } catch(e){}
-    }
-    function _doprompt(k, v) {
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            if (c.ai && c.ai.modes && c.ai.modes[k]) {
-                c.ai.modes[k].prompt = v;
-                bridge.saveConfig(JSON.stringify(c));
+            var q = si.text.trim().toLowerCase()
+            if (q) {
+                raw = raw.filter(function(it) {
+                    return (it.name || "").toLowerCase().indexOf(q) >= 0 || (it.uid || "").indexOf(q) >= 0
+                })
             }
-        } catch(e){}
+            raw.sort(function(a, b) {
+                if (a._p && !b._p) return -1
+                if (!a._p && b._p) return 1
+                return (b.time || 0) - (a.time || 0)
+            })
+            chatList = raw; listVer += 1
+        } catch(e) { chatList = []; listVer += 1 }
+        loading = false
+    }
+    function refreshList() {
+        loading = true
+        try { var r = bridge.getChatList(); refreshListData(r) }
+        catch(e) { chatList = []; listVer += 1 }
+        loading = false
+    }
+    function loadMsgs(u, p) {
+        curUid = u
+        if (p < 0) { msgs = []; msgPage = -1; hasMore = false; nextLoadPage = -1 }
+        bridge.getMessages(u, p)
+    }
+    function selUser(u, n, c) {
+        if (!u) return
+        curUid = u; curName = n || ("用户"+u); curColor = c || ""
+        loadMsgs(u, -1); bridge.requestAvatar(u)
+    }
+    function sendMsg() {
+        var t = mi.text.trim()
+        if (!t || !curUid) return
+        bridge.sendMessage(curUid, t)
+        msgs.push({id:0,content:t,from_uid:myUid,sender:{},"sender.name":myName,time:Math.floor(Date.now()/1000),is_me:true})
+        mi.text = ""
+        Qt.callLater(function() { msgList.positionViewAtEnd() })
+    }
+    function tf(ts) {
+        if (!ts) return ""
+        var d = new Date(ts*1000)
+        return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)
+    }
+    function td(ts) {
+        if (!ts) return ""
+        var d = new Date(ts*1000); var n = new Date()
+        if (d.toDateString()===n.toDateString()) return ""
+        var y = new Date(n); y.setDate(y.getDate()-1)
+        if (d.toDateString()===y.toDateString()) return "昨天"
+        return (d.getMonth()+1)+"/"+d.getDate()
+    }
+    function tFav(uid) { var i=favList.indexOf(uid); if(i>=0)favList.splice(i,1);else favList.push(uid);us() }
+    function tPin(uid) { var i=pinList.indexOf(uid); if(i>=0)pinList.splice(i,1);else pinList.push(uid);us() }
+    function us() { bridge.saveConfig(JSON.stringify({favorites:favList,pins:pinList})) }
+    function cycTheme() { themeMode=(themeMode+1)%3; bridge.saveConfig(JSON.stringify({theme:{mode:themeMode,accent:acc}})) }
+    function showProf(u,n) { profUid=u; profName=n }
+    function showPopupNotify(title,body,uid,sender) {
+        notifTitle=title; notifBody=body; notifSender=sender||""; notifUid=uid||""
+        notifExpanded=false; notifAnim.restart(); notifPopup.open()
     }
 
-    Component.onCompleted: {
-        _refillAccountFields();
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            aiOn = !!(c.ai && c.ai.enabled);
-            curMode = (c.ai && c.ai.current_mode) || "class";
-            kw = (c.ai && c.ai.important_keyword) || kw;
-            svrUrl = (c.server && c.server.url) || "";
-            notifyOn = !(c.notification && c.notification.enabled === false);
-            soundOn = !(c.notification && c.notification.sound_enabled === false);
-            soundFile = (c.notification && c.notification.sound_file) || "";
-            if (c.theme === "dark") darkMode = true;
-            if (c.bg) {
-                if (c.bg.type) bgType = c.bg.type;
-                if (c.bg.solid_color) bgSolidColor = c.bg.solid_color;
-                if (c.bg.gradient_start) bgGradientStart = c.bg.gradient_start;
-                if (c.bg.gradient_end) bgGradientEnd = c.bg.gradient_end;
-                if (c.bg.image_url) bgImageUrl = c.bg.image_url;
+    Connections {
+        target: bridge
+        function onWsStatus(s) { wsStat = s }
+        function onNewMessage(m,c,sn,su,ts) {
+            if (su===curUid) { msgs.push({id:0,content:c,from_uid:su,"sender.name":sn,time:ts,is_me:false}); Qt.callLater(function(){msgList.positionViewAtEnd()}) }
+            bridge.refreshChatList()
+        }
+        function onImportantMessage(m,c,sn,su,tip,ts) {
+            if (notifPopupEnabled) showPopupNotify("来自 " + sn, tip || c, m, sn)
+            if (notifSoundEnabled) {
+                if (notifSoundType === "system") bridge.playSound("")
+                else if (notifSoundFile) bridge.playSound(notifSoundFile)
             }
-        } catch(e){}
-        _rf();
-        _buildModes();
-        _relogin();
-        try {
-            var ss = JSON.parse(bridge.getServerStatus() || "{}");
-            svrRem = ss.remaining || 0;
-            svrTot = ss.total || 0;
-            svrOk = ss.allowed !== false;
-            sAllow = !!ss.super_allow;
-        } catch(e){}
-        bridge.loginTestResult.connect(function(ok, msg){
-            toast.show(msg || (ok ? "登录成功" : "登录失败"));
-            if (ok) { _lu(); _rf(); }
-        });
-        bridge.wsStatusChanged.connect(function(s){ wsStat = s });
-        bridge.chatListUpdated.connect(function(){ _lc() });
-        bridge.userInfoUpdated.connect(function(n, u, a){ myName = n || ""; myUid = u || "" });
-        bridge.cookieInvalidPopup.connect(function(){ cookiePopup.visible = true });
-        bridge.newMessage.connect(function(mid, content, sn, su, ts){
-            _lc();
-            if (curUid === su) _lch();
-        });
-        bridge.serverSyncResult.connect(function(ok, msg, rem, tot, allowed){
-            svrRem = rem;
-            svrTot = tot;
-            svrOk = ok;
-            sAllow = allowed;
-        });
+        }
+        function onChatListReady(j) { refreshListData(j) }
+        function onLoginTestResult(s,uid,name,e) {
+            if (s) { myUid=uid; myName=name||("用户"+uid); toast("已登录: "+myName); refreshList() }
+            else { toast("失败: "+(e||"登录失败")) }
+        }
+        function onMessagesReady(j,pg,more) {
+            var d=JSON.parse(j); var newMsgs=d.messages||[]; var tp=d.totalPages||1
+            if (pg<0) { msgs=newMsgs; nextLoadPage=tp-1; hasMore=tp>1&&nextLoadPage>=1; Qt.callLater(function(){msgList.positionViewAtEnd()}) }
+            else { msgs=newMsgs.concat(msgs); nextLoadPage=pg-1; hasMore=nextLoadPage>=1 }
+        }
+        function onMessagesLoading(b) { msgLoading=b }
+        function onReplySent(s,m) { toast(s?"已发送":"失败: "+(m||"")) }
+        function onShowErrorPopup(msg,rid) { showError(msg,function(){
+            if(rid.indexOf("msg_")===0){var p=rid.substring(4).split("_");bridge.getMessages(p[0],parseInt(p[1])||1)}
+            else if(rid==="refresh")bridge.refreshChatList()
+            else if(rid.indexOf("send_")===0)bridge.sendMessage(rid.substring(5),mi.text)
+        })}
+        function onConfigChanged() { reloadCfg() }
+        function onServerSyncResult(j) { var s=JSON.parse(j); serverRem=s.remaining||0; serverTotal=s.total||0 }
+        function onAvatarReady(uid,path) {}
     }
 
-    // ══════════════════════════════════════
-    //  BACKGROUND LAYER (gradient/image)
-    // ══════════════════════════════════════
     Rectangle {
-        id: mainBg
-        anchors.fill: parent
-        opacity: bgOpacity
-
-        // Background color/gradient based on type
-        color: {
-            if (bgType === "solid") return bgSolidColor;
-            if (bgType === "image") return "#E8E8E8";
-            // gradient - base color (will be overridden by gradient)
-            return bgGradientStart;
+        anchors.fill: parent; anchors.margins: 1; radius: 14; clip: true
+        gradient: Gradient {
+            GradientStop { position:0; color:clt("#E8EEF8","#060A16") }
+            GradientStop { position:0.35; color:clt("#EEF2FD","#080D1A") }
+            GradientStop { position:0.65; color:clt("#F0F4FF","#070C18") }
+            GradientStop { position:1; color:clt("#E4EAF6","#050914") }
         }
-
-        gradient: bgType === "gradient" ? diagGradient : null
-
-        Gradient {
-            id: diagGradient
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: bgGradientStart }
-            GradientStop { position: 1.0; color: bgGradientEnd }
+        Rectangle {
+            anchors.top:parent.top; anchors.left:parent.left; anchors.right:parent.right
+            height:1; color:clt(Qt.rgba(1,1,1,0.25),Qt.rgba(1,1,1,0.04))
         }
 
-        Image {
-            id: bgImage
-            anchors.fill: parent
-            source: bgImageUrl !== "" ? bgImageUrl : ""
-            visible: bgType === "image" && bgImageUrl !== ""
-            fillMode: Image.PreserveAspectCrop
-            opacity: 0.85
-        }
-    }
+        RowLayout { anchors.fill:parent; spacing:0
 
-    // ══════════════════════════════════════
-    //  RESIZE HANDLES (8 directions)
-    // ══════════════════════════════════════
-    Item {
-        id: resizeHandles
-        anchors.fill: parent
-        z: 9999
-
-        // Corner: bottom-right
-        Rectangle {
-            width: 16; height: 16
-            anchors.right: parent.right; anchors.bottom: parent.bottom
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeFDiagCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.BottomEdge | RightEdge) }
-            }
-        }
-        // Corner: bottom-left
-        Rectangle {
-            width: 16; height: 16
-            anchors.left: parent.left; anchors.bottom: parent.bottom
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeBDiagCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.BottomEdge | LeftEdge) }
-            }
-        }
-        // Corner: top-right
-        Rectangle {
-            width: 16; height: 16
-            anchors.right: parent.right; anchors.top: parent.top
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeBDiagCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.TopEdge | RightEdge) }
-            }
-        }
-        // Corner: top-left
-        Rectangle {
-            width: 16; height: 16
-            anchors.left: parent.left; anchors.top: parent.top
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeFDiagCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.TopEdge | LeftEdge) }
-            }
-        }
-        // Edge: bottom
-        Rectangle {
-            height: 6; anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            anchors.leftMargin: 16; anchors.rightMargin: 16
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeVerCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.BottomEdge) }
-            }
-        }
-        // Edge: top
-        Rectangle {
-            height: 6; anchors { left: parent.left; right: parent.right; top: parent.top }
-            anchors.leftMargin: 16; anchors.rightMargin: 16
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeVerCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.TopEdge) }
-            }
-        }
-        // Edge: right
-        Rectangle {
-            width: 6; anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
-            anchors.topMargin: 16; anchors.bottomMargin: 16
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeHorCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.RightEdge) }
-            }
-        }
-        // Edge: left
-        Rectangle {
-            width: 6; anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-            anchors.topMargin: 16; anchors.bottomMargin: 16
-            color: "transparent"; z: 9999
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.SizeHorCursor
-                onPressed: function(mouse){ win.startSystemResize(Qt.LeftEdge) }
-            }
-        }
-    }
-
-    // ══════════════════════════════════════
-    //  MAIN CONTAINER (rounded card)
-    // ══════════════════════════════════════
-    Rectangle {
-        id: rootCard
-        anchors.fill: parent
-        anchors.margins: 0
-        radius: 12
-        color: cBg
-        border.color: cBorder
-        border.width: 1
-
-        // Subtle shadow effect via overlay
-        Rectangle {
-            anchors.fill: parent
-            radius: 12
-            color: "transparent"
-            border.color: "#00000008"
-            border.width: 1
-            z: -1
-        }
-
-        // ═════════════════════════════════
-        //  TITLE BAR
-        // ═════════════════════════════════
-        Rectangle {
-            id: titleBar
-            height: 38
-            z: 200
-            anchors {
-                left: parent.left; right: parent.right; top: parent.top
-                topMargin: 0; leftMargin: 0; rightMargin: 0
-            }
-            color: cSidebarBg
-            radius: 12
-            clip: true
-
-            // Bottom rounding fix
+            // ═══ LEFT SIDEBAR ═══
             Rectangle {
-                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: 10; color: parent.color
-            }
-
-            DragHandler {
-                target: null
-                onActiveChanged: { if (active) win.startSystemMove() }
-            }
-
-            Row {
-                x: 14; y: 0
-                spacing: 8
-                height: parent.height
-                Repeater {
-                    model: ["#FF5F57", "#FFBD2E", "#28C840"]
-                    Rectangle {
-                        width: 13; height: 13
-                        radius: 7
-                        y: (parent.height - height) / 2
-                        color: modelData
-                        opacity: tlBtnMa.containsMouse ? 1.0 : 0.85
-                        Behavior on opacity { NumberAnimation { duration: animFast } }
-                        scale: tlBtnMa.pressed ? 0.88 : 1.0
-                        Behavior on scale { NumberAnimation { duration: animFast } }
-                        MouseArea {
-                            id: tlBtnMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: function(){
-                                if (index === 0) win.close()
-                                else if (index === 1) win.showMinimized()
-                                else win.visibility === Window.Maximized ? win.showNormal() : win.showMaximized()
-                            }
-                        }
-                    }
-                }
-            }
-
-            Text {
-                anchors.centerIn: parent
-                text: "LuoguChat"
-                color: cText2
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-            }
-
-            Row {
-                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                anchors.rightMargin: 10
-                spacing: 4
-
-                // AI toggle button
-                Rectangle {
-                    width: aiToggleBtnMa.containsMouse ? 56 : 48
-                    height: 26
-                    radius: 13
-                    color: aiOn ? "#E8FFEC" : "transparent"
-                    border.color: aiOn ? cSuccess : "transparent"
-                    border.width: 1
-                    Behavior on width { NumberAnimation { duration: animFast } }
-                    Behavior on color { ColorAnimation { duration: animFast } }
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 4
-                        Rectangle {
-                            width: 18; height: 18
-                            radius: 9
-                            y: (parent.parent.height - height) / 2
-                            color: aiOn ? cSuccess : cText3
-                            Behavior on color { ColorAnimation { duration: animFast } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: "\u2713"  // checkmark
-                                color: "white"
-                                font.pixelSize: 10
-                                font.weight: Font.Bold
-                                visible: aiOn
-                            }
-                        }
-                        Text {
-                            text: "AI"
-                            font.pixelSize: 11
-                            font.weight: Font.DemiBold
-                            color: aiOn ? cSuccess : cText2
-                            anchors.verticalCenter: parent.verticalCenter
-                            Behavior on color { ColorAnimation { duration: animFast } }
-                        }
-                    }
-                    MouseArea {
-                        id: aiToggleBtnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function() { aiOn = !aiOn; _saveCfg() }
-                    }
-                }
-
-                // Settings button
-                Rectangle {
-                    id: settingsBtn
-                    width: settingsBtnMa.containsMouse ? 32 : 28
-                    height: 26
-                    radius: 6
-                    color: settingsBtnMa.containsMouse ? cHover : "transparent"
-                    Behavior on width { NumberAnimation { duration: animFast } }
-                    Behavior on color { ColorAnimation { duration: animFast } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\u2699"  // gear
-                        font.pixelSize: 14
-                        color: settingsBtnMa.containsMouse ? cPrimary : cText3
-                        Behavior on color { ColorAnimation { duration: animFast } }
-                    }
-                    MouseArea {
-                        id: settingsBtnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function() { settingsPanel.visible = true; _refillAccountFields() }
-                    }
-                }
-
-                // Theme toggle
-                Rectangle {
-                    id: themeBtn
-                    width: themeBtnMa.containsMouse ? 32 : 28
-                    height: 26
-                    radius: 6
-                    color: themeBtnMa.containsHover ? cHover : "transparent"
-                    Behavior on width { NumberAnimation { duration: animFast } }
-                    Behavior on color { ColorAnimation { duration: animFast } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: darkMode ? "\u2600" : "\u2601"  // sun / moon
-                        font.pixelSize: 14
-                        color: themeBtnMa.containsHover ? cPrimary : cText3
-                        Behavior on color { ColorAnimation { duration: animFast } }
-                    }
-                    MouseArea {
-                        id: themeBtnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        property bool containsHover: containsMouse
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function() { darkMode = !darkMode }
-                    }
-                }
-            }
-        }
-
-        // ═════════════════════════════════
-        //  BODY AREA (below title bar)
-        // ═════════════════════════════════
-        Item {
-            id: bodyArea
-            anchors {
-                top: titleBar.bottom
-                left: parent.left
-                right: parent.right
-                bottom: parent.bottom
-            }
-
-            // ─────────────────────────────
-            //  LEFT SIDEBAR (60px)
-            // ─────────────────────────────
-            Rectangle {
-                id: sidebar
-                width: 60
-                z: 20
-                anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-                color: cSidebarBg
-
-                // Right border line
-                Rectangle {
-                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                    width: 1; color: cBorder
-                }
-
-                ColumnLayout {
-                    anchors { fill: parent; topMargin: 10; bottomMargin: 8 }
-                    spacing: 2
-
-                    // User avatar
-                    Rectangle {
-                        Layout.preferredWidth: 40; Layout.preferredHeight: 40
-                        Layout.alignment: Qt.AlignHCenter
-                        radius: 20
-                        color: _abg(myName || "L")
-                        scale: avatarMa.containsMouse ? 1.06 : 1.0
-                        Behavior on scale { NumberAnimation { duration: animFast; easing.type: Easing.OutCubic } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: myName ? myName[0] : "L"
-                            color: "white"
-                            font.pixelSize: 18
-                            font.weight: Font.Bold
-                        }
-
-                        // Online status dot
-                        Rectangle {
-                            width: 12; height: 12
-                            radius: 6
-                            anchors { right: parent.right; bottom: parent.bottom; margins: -1 }
-                            color: wsStat === "connected" ? cSuccess : cDanger
-                            border.color: cSidebarBg
-                            border.width: 2
-                        }
-
-                        MouseArea {
-                            id: avatarMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                        }
-                    }
-
-                    Item { Layout.preferredHeight: 8 }
-
-                    // Navigation items (线条图标)
-                    Repeater {
-                        model: ["消息", "联系人", "收藏", "文件"]
-                        Rectangle {
-                            Layout.preferredWidth: 46; Layout.preferredHeight: 40
-                            Layout.alignment: Qt.AlignHCenter
-                            radius: 10
-                            color: navIdx === index ? cPrimaryLight : (navItemMa.containsMouse ? cHover : "transparent")
-                            scale: navIdx === index ? 1.02 : (navItemMa.containsMouse ? 1.05 : 1.0)
-                            Behavior on color { ColorAnimation { duration: animFast } }
-                            Behavior on scale { NumberAnimation { duration: animFast; easing.type: Easing.OutCubic } }
-
-                            // 线条风格图标 (Canvas 绘制)
-                            Canvas {
-                                id: navIcon
-                                anchors.centerIn: parent
-                                width: 20; height: index === 2 ? 20 : (index === 0 ? 20 : 20)
-                                property color icColor: navIdx === index ? cPrimary : (navItemMa.containsMouse ? cText1 : cText3)
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.strokeStyle = icColor;
-                                    ctx.lineWidth = 1.6;
-                                    ctx.lineJoin = "round";
-                                    ctx.lineCap = "round";
-                                    if (index === 0) {
-                                        // 信封 (线条)
-                                        ctx.beginPath();
-                                        ctx.rect(1, 3, 18, 13);
-                                        ctx.stroke();
-                                        ctx.beginPath();
-                                        ctx.moveTo(1, 3);
-                                        ctx.lineTo(10, 9);
-                                        ctx.lineTo(19, 3);
-                                        ctx.stroke();
-                                    } else if (index === 1) {
-                                        // 人像 (线条)
-                                        ctx.beginPath();
-                                        ctx.arc(10, 6, 4, 0, Math.PI * 2);
-                                        ctx.stroke();
-                                        ctx.beginPath();
-                                        ctx.arc(10, 22, 7, Math.PI, 0, false);
-                                        ctx.stroke();
-                                    } else if (index === 2) {
-                                        // 星星 (线条)
-                                        var cx = 10, cy = 10, or = 7, ir = 3;
-                                        ctx.beginPath();
-                                        for (var i = 0; i < 5; i++) {
-                                            var a = (Math.PI / 2) + (2 * Math.PI / 5) * i;
-                                            var ox = cx + or * Math.cos(a);
-                                            var oy = cy - or * Math.sin(a);
-                                            if (i === 0) ctx.moveTo(ox, oy); else ctx.lineTo(ox, oy);
-                                            a += Math.PI / 5;
-                                            ox = cx + ir * Math.cos(a);
-                                            oy = cy - ir * Math.sin(a);
-                                            ctx.lineTo(ox, oy);
-                                        }
-                                        ctx.closePath();
-                                        ctx.stroke();
-                                    } else if (index === 3) {
-                                        // 文件夹 (线条)
-                                        ctx.beginPath();
-                                        ctx.moveTo(1, 4);
-                                        ctx.lineTo(7, 4);
-                                        ctx.lineTo(11, 1);
-                                        ctx.lineTo(19, 1);
-                                        ctx.lineTo(19, 15);
-                                        ctx.lineTo(1, 15);
-                                        ctx.closePath();
-                                        ctx.stroke();
-                                    }
-                                }
-                            }
-
-                            Column {
-                                anchors.centerIn: parent
-                                anchors.verticalCenterOffset: 12
-                                spacing: 2
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: modelData
-                                    font.pixelSize: 9
-                                    color: navIdx === index ? cPrimary : cText4
-                                }
-                            }
-
-                            MouseArea {
-                                id: navItemMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: function() {
-                                    navIdx = index;
-                                    searchResults = [];
-                                    searchFld.text = "";
-                                    _lc();
-                                }
-                            }
-                        }
-                    }
-
-                    Item { Layout.fillHeight: true }
-
-                    // Bottom area: AI quick toggle
-                    Rectangle {
-                        Layout.preferredWidth: 46; Layout.preferredHeight: 40
-                        Layout.alignment: Qt.AlignHCenter
-                        radius: 10
-                        color: aiOn ? "#E8FFEC" : (aiNavMa.containsMouse ? cHover : "transparent")
-                        Behavior on color { ColorAnimation { duration: animFast } }
-
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 2
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: "\uD83E\uDD16"  // robot
-                                font.pixelSize: 18
-                                color: aiOn ? cSuccess : (aiNavMa.containsHover ? cText1 : cText3)
-                                Behavior on color { ColorAnimation { duration: animFast } }
-                            }
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: "AI助手"
-                                font.pixelSize: 9
-                                color: aiOn ? cSuccess : cText4
-                            }
-                        }
-                        MouseArea {
-                            id: aiNavMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            property bool containsHover: containsMouse
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: function() { aiOn = !aiOn; _saveCfg() }
-                        }
-                    }
-
-                    Item { Layout.preferredHeight: 4 }
-
-                    // Settings gear at bottom
-                    Rectangle {
-                        Layout.preferredWidth: 36; Layout.preferredHeight: 36
-                        radius: 8
-                        color: settingsNavMa.containsMouse ? cHover : "transparent"
-                        Layout.alignment: Qt.AlignHCenter
-                        Behavior on color { ColorAnimation { duration: animFast } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "\u2630"  // menu bars
-                            font.pixelSize: 18
-                            color: settingsNavMa.containsMouse ? cPrimary : cText3
-                            Behavior on color { ColorAnimation { duration: animFast } }
-                        }
-                        MouseArea {
-                            id: settingsNavMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: function() { settingsPanel.visible = true; _refillAccountFields() }
-                        }
-                    }
-                }
-            }
-
-            // ─────────────────────────────
-            //  MIDDLE PANEL (chat list)
-            // ─────────────────────────────
-            Rectangle {
-                id: listPanel
-                width: 280
-                anchors {
-                    top: parent.top; bottom: parent.bottom
-                    left: sidebar.right
-                }
-                color: cListBg
-
-                // Right border line
-                Rectangle {
-                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                    width: 1; color: cBorder
-                }
-
+                Layout.preferredWidth: 60; Layout.fillHeight: true
+                color: clt(sideBg,"#040810")
                 Column {
-                    anchors.fill: parent
-                    spacing: 0
-
-                    // Search bar area
+                    anchors.fill:parent; topPadding: 14; bottomPadding: 12; spacing: 6
+                    // 头像
                     Rectangle {
-                        width: parent.width
-                        height: 58
+                        width:44; height:44; radius:22; anchors.horizontalCenter:parent.horizontalCenter
+                        color: clt("#D8DDF0","#1E2850")
+                        Image {
+                            anchors.fill:parent; anchors.margins:2
+                            source: myUid ? "https://cdn.luogu.com.cn/upload/usericon/" + myUid + ".png" : ""
+                            fillMode: Image.PreserveAspectCrop; asynchronous:true
+                            onStatusChanged: if(status===Image.Error) source=""
+                        }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{if(myUid)showProf(myUid,myName)} }
+                    }
+                    Item { height: 10; width: 1 }
+                    // 列表折叠按钮 — 精致悬浮按钮
+                    Rectangle {
+                        id: collapseBtn; width: 30; height: 30; radius: 15
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        color: collapseHover.containsMouse ? Qt.lighter(acc, 1.2) : acc
+                        scale: collapseHover.containsMouse ? 1.1 : 1.0
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on scale { NumberAnimation { duration: 150 } }
+                        Text { anchors.centerIn: parent; text: "≡"; font.pixelSize: 14; color: "white"; font.bold: true }
+                        MouseArea { id: collapseHover; anchors.fill:parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true; onClicked: showList = !showList }
+                    }
+                    Item { Layout.fillHeight:true; width:1 }
+                    // 主题
+                    Rectangle {
+                        width:40; height:40; radius:12; anchors.horizontalCenter:parent.horizontalCenter
                         color: "transparent"
+                        Text { anchors.centerIn:parent; text: themeMode===0?"☀":(themeMode===1?"☾":"◐"); font.pixelSize:20; color:clt(text2,text3) }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked:cycTheme() }
+                    }
+                    // 设置
+                    Rectangle {
+                        width:40; height:40; radius:12; anchors.horizontalCenter:parent.horizontalCenter
+                        color: "transparent"
+                        Text { anchors.centerIn:parent; text:"⚙"; font.pixelSize:22; color:clt(text2,text3) }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked:{reloadCfg();stg.open()} }
+                    }
+                }
+            }
 
+            Rectangle { Layout.preferredWidth:1; Layout.fillHeight:true; color:clt(bd1,bd2) }
+
+            // ═══ MIDDLE PANEL (可折叠) ═══
+            Rectangle {
+                id: midPanel
+                Layout.preferredWidth: showList ? 310 : 0; Layout.fillHeight: true
+                clip: true
+                color: clt(cardBg,"#0A1020")
+                visible: showList
+                Behavior on Layout.preferredWidth { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                Rectangle {
+                    id: searchBar
+                    anchors.top:parent.top; anchors.left:parent.left; anchors.right:parent.right
+                    height: 62; color:"transparent"
+                    Row { anchors.centerIn:parent; spacing: 8
                         Rectangle {
-                            width: parent.width - 20
-                            height: 36
-                            radius: 8
-                            anchors.centerIn: parent
-                            color: "#F2F3F5"
-                            border.color: searchFld.activeFocus ? cPrimary : "transparent"
-                            border.width: searchFld.activeFocus ? 1.5 : 0
-                            Behavior on border.color { ColorAnimation { duration: animFast } }
-
-                            Row {
-                                anchors { fill: parent; leftMargin: 10; rightMargin: 8 }
-                                spacing: 6
-
-                                Text {
-                                    text: "\uD83D\uDD0D"  // magnifying glass
-                                    font.pixelSize: 15
-                                    color: cText3
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-
-                                TextField {
-                                    id: searchFld
-                                    width: parent.width - 30
-                                    height: parent.height
-                                    color: cText1
-                                    font.pixelSize: 13
-                                    placeholderText: "搜索联系人..."
-                                    background: Rectangle { color: "transparent" }
-                                    onTextChanged: {
-                                        searchKw = text;
-                                        if (!text.trim()) { searchResults = []; _lc() }
-                                        else _doSearch()
-                                    }
-                                }
-
-                                // Clear button
-                                Rectangle {
-                                    visible: searchFld.text !== ""
-                                    width: 18; height: 18
-                                    radius: 9
-                                    color: cText4
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    opacity: clearSearchMa.containsMouse ? 1.0 : 0.7
-                                    Behavior on opacity { NumberAnimation { duration: animFast } }
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "\u2715"  // cross
-                                        color: "white"
-                                        font.pixelSize: 9
-                                        font.weight: Font.Bold
-                                    }
-                                    MouseArea {
-                                        id: clearSearchMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() { searchFld.text = ""; searchResults = []; _lc() }
-                                    }
+                            width: 210; height: 38; radius: 19
+                            color: clt("#EEF0F8","#121830"); border.color: clt(bd1,bd2); border.width: 1
+                            Row { anchors.fill:parent; leftPadding: 16; spacing: 8
+                                Text { text:"⌕"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter; color: clt(text3,text3) }
+                                TextInput {
+                                    id: si; anchors.verticalCenter: parent.verticalCenter; width: 155
+                                    font.pixelSize: 15; color: clt(text1,text1)
+                                    onTextChanged: refreshList()
                                 }
                             }
+                        }
+                        Rectangle {
+                            width: 38; height: 38; radius: 19
+                            color: clt("#EEF0F8","#121830"); border.color: clt(bd1,bd2); border.width: 1
+                            Text { anchors.centerIn:parent; text:"↻"; font.pixelSize: 20; color: clt(text2,text2) }
+                            MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: bridge.refreshChatList() }
                         }
                     }
+                }
+                Rectangle { anchors.top:searchBar.bottom; anchors.left:parent.left; anchors.right:parent.right; height:1; color:clt(bd1,bd2) }
 
-                    // Chat list
-                    ListView {
-                        id: chatLv
-                        width: parent.width
-                        height: parent.height - 58
-                        clip: true
-                        spacing: 0
-                        model: searchResults.length > 0 ? searchResults : chatList
-
-                        delegate: Rectangle {
-                            id: chatItemDelegate
-                            required property string uid
-                            required property string name
-                            required property string last_message
-                            required property int last_time
-                            required property int unread
-
-                            width: chatLv.width
-                            height: 68
-                            color: curUid === uid ? cPrimaryLight : (chatItemMa.containsMouse ? cHover : "transparent")
-                            Behavior on color { ColorAnimation { duration: animFast } }
-
-                            // Left accent bar for selected
-                            Rectangle {
-                                width: 4
-                                anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                color: cPrimary
-                                visible: curUid === uid
-                                opacity: curUid === uid ? 1.0 : 0.0
-                                Behavior on opacity { NumberAnimation { duration: animNormal } }
+                ScrollView {
+                    anchors.top: parent.top; anchors.topMargin: 63
+                    anchors.bottom: parent.bottom; anchors.left: parent.left
+                    anchors.right: parent.right; anchors.rightMargin: 3
+                    clip: true
+                    ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded; width:4; contentItem:Rectangle{radius:2; color:clt("#C0C4D8","#3A4260"); opacity:0.35}}
+                    Column {
+                        id: midCol; width: parent.width; spacing: 0
+                        // 加载指示器
+                        Rectangle {
+                            visible: loading
+                            width: 140; height: 56; radius: 28; anchors.horizontalCenter: parent.horizontalCenter
+                            color: clt(Qt.rgba(0.94,0.95,0.98,0.95),Qt.rgba(0.06,0.1,0.2,0.95))
+                            Row { anchors.centerIn:parent; spacing: 10
+                                Rectangle { width: 20; height: 20; radius: 10; anchors.verticalCenter:parent.verticalCenter; color:acc
+                                    RotationAnimation on rotation{from:0;to:360;duration:800;loops:Animation.Infinite;running:loading} }
+                                Text { text:"加载中..."; font.pixelSize: 15; color: clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
                             }
-
-                            Row {
-                                anchors { fill: parent; leftMargin: 14; rightMargin: 12; topMargin: 8; bottomMargin: 8 }
-                                spacing: 12
-
-                                // Avatar
+                        }
+                        Repeater {
+                            model: chatList
+                            delegate: Rectangle {
+                                width: parent.width; height: 74
+                                color: {
+                                    var u = String(modelData.uid || (modelData.user ? modelData.user.uid : ""))
+                                    return curUid === u ? clt(select,"#162050") : (hvr.containsMouse ? clt(hover,"#111D38") : "transparent")
+                                }
                                 Rectangle {
-                                    width: 44; height: 44
-                                    radius: 10
-                                    color: _abg(name || "?")
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    scale: chatItemMa.containsMouse ? 1.04 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: animFast } }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: (name || "?")[0]
-                                        color: "white"
-                                        font.pixelSize: 17
-                                        font.weight: Font.Bold
-                                    }
-
-                                    // Unread count badge on avatar
+                                    visible: curUid === String(modelData.uid || "")
+                                    anchors.left:parent.left; anchors.top:parent.top; anchors.bottom:parent.bottom
+                                    width: 3; color:acc; radius:1.5
+                                }
+                                property string uid: String(modelData.uid || "")
+                                property string name: modelData.name || (modelData.user ? modelData.user.name : "") || ("用户" + uid)
+                                property string last: modelData.content || ""
+                                property int tm: modelData.time || 0
+                                property string ucolor: modelData.color || ""
+                                Behavior on color { ColorAnimation { duration: 160 } }
+                                Row {
+                                    anchors.fill:parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 12
                                     Rectangle {
-                                        visible: unread > 0
-                                        width: unread > 99 ? 28 : 20
-                                        height: 18
-                                        radius: 9
-                                        color: cDanger
-                                        anchors { right: parent.right; bottom: parent.bottom; margins: -4 }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: unread > 99 ? "99+" : String(unread)
-                                            color: "white"
-                                            font.pixelSize: unread > 99 ? 9 : 11
-                                            font.weight: Font.Bold
+                                        width: 48; height: 48; radius: 24; anchors.verticalCenter: parent.verticalCenter
+                                        color: clt("#E4E8F4","#152040")
+                                        Image {
+                                            anchors.fill:parent; anchors.margins:1
+                                            source: uid ? "https://cdn.luogu.com.cn/upload/usericon/" + uid + ".png" : ""
+                                            fillMode:Image.PreserveAspectCrop; asynchronous:true
                                         }
-                                    }
-                                }
-
-                                // Name + message info
-                                Column {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 56
-                                    spacing: 4
-
-                                    Row {
-                                        width: parent.width
-                                        spacing: 6
-
-                                        Text {
-                                            text: name || "未知用户"
-                                            color: cText1
-                                            font.pixelSize: 14
-                                            font.weight: Font.DemiBold
-                                            elide: Text.ElideRight
-                                            width: parent.width - timeTxt.width - 6
-                                        }
-                                        Text {
-                                            id: timeTxt
-                                            text: _ft(last_time)
-                                            color: cText4
-                                            font.pixelSize: 11
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                    }
-
-                                    Row {
-                                        width: parent.width
-                                        spacing: 6
-
-                                        Text {
-                                            text: last_message || "暂无消息"
-                                            color: curUid === uid ? cText2 : cText3
-                                            font.pixelSize: 12
-                                            elide: Text.ElideRight
-                                            width: parent.width - (unreadBadge.visible ? unreadBadge.width + 6 : 0)
-                                            maximumLineCount: 1
-                                        }
-
-                                        // Unread dot in row
+                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: showProf(uid,name) }
                                         Rectangle {
-                                            id: unreadBadge
-                                            visible: unread > 0 && unread <= 99
-                                            width: 8; height: 8
-                                            radius: 4
-                                            color: cDanger
-                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: pinList.indexOf(uid) >= 0
+                                            width: 18; height: 18; radius: 9
+                                            x: parent.width - 14; y: parent.height - 14
+                                            color: orange
+                                            Text { anchors.centerIn:parent; text:"★"; font.pixelSize: 10; color:"white" }
+                                        }
+                                    }
+                                    Column {
+                                        anchors.verticalCenter: parent.verticalCenter; width: 170; spacing: 4
+                                        Row {
+                                            spacing: 4
+                                            Text { text: name; width: 110; elide:Text.ElideRight; font.pixelSize: 16; font.weight:Font.DemiBold; color:nameColor(ucolor) }
+                                            Item { Layout.fillWidth:true; height:1 }
+                                            Text { text: td(tm); font.pixelSize: 11; color: clt(text3,text3) }
+                                        }
+                                        Text {
+                                            text: last.length > 24 ? last.substring(0, 24) + "…" : last
+                                            font.pixelSize: 14; color: clt(text2,text2); elide:Text.ElideRight; width: 165
                                         }
                                     }
                                 }
-                            }
-
-                            MouseArea {
-                                id: chatItemMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: function() {
-                                    curUid = uid;
-                                    curName = name || "";
-                                    _lch();
+                                MouseArea {
+                                    id: hvr; anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    onClicked: function(m) {
+                                        if (m.button === Qt.RightButton) { cm._u = uid; cm.popup() }
+                                        else { selUser(uid, name, ucolor) }
+                                    }
+                                }
+                                Row {
+                                    anchors.right: parent.right; anchors.rightMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 3
+                                    visible: hvr.containsMouse || favList.indexOf(uid) >= 0 || pinList.indexOf(uid) >= 0
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 8
+                                        color: favList.indexOf(uid) >= 0 ? "#FDE68A" : "transparent"
+                                        Text { anchors.centerIn:parent; text: favList.indexOf(uid) >= 0 ? "★" : "☆"; font.pixelSize: 13; color: favList.indexOf(uid) >= 0 ? "#D97706" : clt(text3,text3) }
+                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: tFav(uid) }
+                                    }
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 8
+                                        color: pinList.indexOf(uid) >= 0 ? "#C7D2FE" : "transparent"
+                                        Text { anchors.centerIn:parent; text:"◉"; font.pixelSize: 13; color: pinList.indexOf(uid) >= 0 ? "#4F46E5" : clt(text3,text3) }
+                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: tPin(uid) }
+                                    }
                                 }
                             }
                         }
-
-                        // Empty state when no chats
-                        Item {
-                            visible: chatLv.count === 0
-                            width: chatLv.width
-                            height: chatLv.height
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 12
-                                Text {
-                                    text: "\uD83D\uDEAC"
-                                    font.pixelSize: 40
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
-                                Text {
-                                    text: "暂无聊天记录"
-                                    font.pixelSize: 14
-                                    color: cText3
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
+                        Rectangle { width:parent.width; height:200; visible:chatList.length===0; color:"transparent"
+                            Column { anchors.centerIn:parent; spacing:12
+                                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"✉"; font.pixelSize:50; color:clt(text3,text3) }
+                                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"暂无消息"; font.pixelSize:16; color:clt(text3,text3) }
                             }
                         }
                     }
                 }
             }
 
-            // ─────────────────────────────
-            //  RIGHT PANEL (chat area)
-            // ─────────────────────────────
+            // DIVIDER
             Rectangle {
-                id: chatArea
-                anchors {
-                    top: parent.top; bottom: parent.bottom
-                    left: listPanel.right; right: parent.right
+                id: midRightDiv; Layout.preferredWidth: 8; Layout.fillHeight: true
+                color: "transparent"
+                property real startX: 0; property real startW: 0
+                // 视觉分隔线 — 居中细线
+                Rectangle { anchors.centerIn:parent; width:1.5; height:parent.height; color:clt(bd1,bd2) }
+                // 拖拽手柄 — 仅悬停时显示
+                Rectangle {
+                    anchors.centerIn: parent; width: 3; height: 50; radius: 1.5
+                    color: panelDrag.containsMouse ? acc : "transparent"
+                    opacity: panelDrag.containsMouse ? 0.5 : 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
-                color: cChatBg
+                MouseArea {
+                    id: panelDrag; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.SplitHCursor
+                    drag{target:midRightDiv; axis:Drag.XAxis}
+                    onPressed: function(mouse){ midRightDiv.startW=midPanel.Layout.preferredWidth; midRightDiv.startX=mouse.x }
+                    onMouseXChanged: function(mouse){ if(drag.active) midPanel.Layout.preferredWidth=Math.max(180,Math.min(500,midRightDiv.startW+mouse.x-midRightDiv.startX)) }
+                }
+            }
 
-                Column {
-                    anchors.fill: parent
-                    spacing: 0
+            // ═══ RIGHT — CHAT PANEL ═══
+            Rectangle {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                color: clt(cardBg,"#090F1C")
 
-                    // ── Chat header ──
+                Column { anchors.fill:parent; spacing:0
+
                     Rectangle {
-                        id: chatHeader
-                        width: parent.height > 0 ? parent.width : 0
-                        height: 56
-                        color: cHeaderBg
+                        width: parent.width; height: 60; color:"transparent"
+                        gradient: Gradient {
+                            GradientStop{position:0;color:clt("#F4F6FC","#0C1428")}
+                            GradientStop{position:1;color:clt("#EDF0F8","#080F20")}
+                        }
+                        Rectangle { anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom;height:1;color:clt(bd1,bd2) }
 
-                        // Bottom border line
-                        Rectangle {
-                            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                            height: 1; color: cBorder
+                        MouseArea {
+                            anchors.left:parent.left; anchors.right:winCtrls.left
+                            anchors.top:parent.top; anchors.bottom:parent.bottom; anchors.leftMargin:16
+                            property point lp
+                            onPressed: function(mouse){ lp = Qt.point(mouse.x, mouse.y) }
+                            onPositionChanged: function(mouse){ win.x += mouse.x - lp.x; win.y += mouse.y - lp.y }
+                            onDoubleClicked: function(mouse){ if(win.visibility===Window.Maximized) win.showNormal(); else win.showMaximized() }
+
+                            Row { anchors.verticalCenter:parent.verticalCenter; spacing:12
+                                Rectangle { width:42; height:42; radius:21; color:clt("#E4E8F4","#152040")
+                                    Image { anchors.fill:parent; anchors.margins:1
+                                        source: curUid ? "https://cdn.luogu.com.cn/upload/usericon/" + curUid + ".png" : ""
+                                        fillMode:Image.PreserveAspectCrop; asynchronous:true }
+                                    MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
+                                        onClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
+                                }
+                                Column { anchors.verticalCenter:parent.verticalCenter; spacing:2
+                                    Row { spacing:8
+                                        Text { text:curName||"选择联系人"; font.pixelSize:17; font.weight:Font.DemiBold; color:nameColor(curColor) }
+                                    }
+                                    Row { spacing:6
+                                        Rectangle { width:8;height:8;radius:4;anchors.verticalCenter:parent.verticalCenter;color:wsStat==="connected"?green:red }
+                                        Text { text:wsStat==="connected"?"在线":"离线"; font.pixelSize:12; color:clt(text3,text3) }
+                                    }
+                                }
+                            }
                         }
 
                         Row {
-                            anchors { fill: parent; leftMargin: 18; rightMargin: 12 }
-                            spacing: 12
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-                                Text {
-                                    text: curName || "选择一个聊天"
-                                    color: cText1
-                                    font.pixelSize: 15
-                                    font.weight: Font.DemiBold
-                                }
-                                Text {
-                                    text: wsStat === "connected" ? "在线 · 可正常收发消息" : "离线 · 请检查网络或 Cookie"
-                                    color: wsStat === "connected" ? cSuccess : cText4
-                                    font.pixelSize: 11
-                                    visible: curUid !== ""
-                                }
+                            id: winCtrls; anchors.right:parent.right; anchors.rightMargin:16
+                            anchors.verticalCenter:parent.verticalCenter; spacing:12
+                            // 加载指示器（右上角）
+                            Row { visible: msgLoading; spacing: 6; anchors.verticalCenter: parent.verticalCenter
+                                Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; color: acc
+                                    RotationAnimation on rotation{from:0;to:360;duration:700;loops:Animation.Infinite;running:msgLoading} }
+                                Text { text: "加载中"; font.pixelSize: 12; color: acc; anchors.verticalCenter: parent.verticalCenter }
                             }
-
-                            Item { Layout.fillWidth: true }
-
-                            Row {
-                                spacing: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                // Action buttons in header
-                                Repeater {
-                                    model: ["\u270F", "\uD83D\uDCC4", "\u22EE"]  // edit, doc, more dots
-                                    Rectangle {
-                                        width: 32; height: 32
-                                        radius: 6
-                                        color: headerActionMa.containsMouse ? cHover : "transparent"
-                                        Behavior on color { ColorAnimation { duration: animFast } }
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData
-                                            font.pixelSize: 15
-                                            color: headerActionMa.containsHover ? cPrimary : cText3
-                                            Behavior on color { ColorAnimation { duration: animFast } }
-                                        }
-                                        MouseArea {
-                                            id: headerActionMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            property bool containsHover: containsMouse
-                                            cursorShape: Qt.PointingHandCursor
-                                        }
-                                    }
-                                }
+                            // 刷新消息
+                            Rectangle { width:18;height:18;radius:9;color:clt("#C8CDE0","#283050")
+                                Text { anchors.centerIn:parent;text:"↻";font.pixelSize:11;color:clt("#5A5E78","#7880A0") }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true
+                                    onClicked:{if(curUid)loadMsgs(curUid,-1)} }
+                            }
+                            Rectangle { width:18;height:18;radius:9;color:xmh.containsMouse?"#10B981":"#059669"
+                                MouseArea { id:xmh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true
+                                    onClicked:{if(win.visibility===Window.Maximized)win.showNormal();else win.showMaximized()} }
+                            }
+                            Rectangle { width:18;height:18;radius:9;color:xnh.containsMouse?"#F59E0B":"#D97706"
+                                MouseArea { id:xnh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:win.showMinimized() }
+                            }
+                            Rectangle { width:18;height:18;radius:9;color:xch.containsMouse?"#EF4444":"#DC2626"
+                                MouseArea { id:xch;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:Qt.quit() }
                             }
                         }
                     }
 
-                    // ── Messages area ──
-                    ListView {
-                        id: msgLst
-                        width: parent.width
-                        height: parent.height - 56 - inputArea.height
-                        model: msgs
-                        clip: true
-                        spacing: 12
-                        cacheBuffer: 2000
-                        anchors.topMargin: 8
+                    // MESSAGE LIST
+                    Item {
+                        id:msgArea; width:parent.width; height:parent.height - 185; clip:true
 
-                        delegate: Item {
-                            id: msgItem
-                            width: msgLst.width
-                            height: msgCol.height + 16
-                            opacity: 1
+                        ListView {
+                            id: msgList
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.leftMargin: 4
+                            anchors.right: parent.right; anchors.rightMargin: 4; anchors.bottom: parent.bottom; clip:true
+                            spacing: 8; topMargin: 14; bottomMargin: 14
+                            model: msgs; boundsBehavior:Flickable.StopAtBounds; focus:true
 
-                            Row {
-                                id: msgRow
-                                anchors { left: parent.left; right: parent.right; leftMargin: 18; rightMargin: 18 }
-                                layoutDirection: modelData.is_me ? Qt.RightToLeft : Qt.LeftToRight
-                                spacing: 10
+                            header: Rectangle {
+                                width: msgList.width - 14; height: hasMore && msgList.atYBeginning && msgs.length>0 ? 40 : 0
+                                anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                                radius: 12; color:clt("#E4EAFA","#101D38"); clip:true
+                                Row { anchors.centerIn:parent; spacing:8
+                                    Text { text:"↑"; font.pixelSize:15; color:acc }
+                                    Text { text:"加载更早的消息"; font.pixelSize:14; color:acc }
+                                }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
+                                    onClicked:{loadMsgs(curUid,nextLoadPage)} }
+                                Behavior on height{NumberAnimation{duration:180}}
+                            }
 
-                                // Avatar
+                            delegate: Item {
+                                id:msgRow; width: msgList.width - 14
+                                anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                                height: bubble.height + 8
+                                property bool im: modelData.is_me || (modelData.sender&&String(modelData.sender.uid||"")===myUid) || String(modelData.from_uid||"")===myUid
+                                property string txt: (modelData.content || modelData.text || "")
+                                property string msgId: String(modelData.id || 0)
+
+                                // 对方头像
+                                Rectangle { visible:!im; opacity:im?0:1; width:30;height:30;radius:15
+                                    anchors.left:parent.left; anchors.leftMargin:4; y:parent.height-height-4
+                                    color:clt("#DCE0F0","#1A2848"); clip:true
+                                    Image { anchors.centerIn:parent; width:28; height:28
+                                        source:curUid?"https://cdn.luogu.com.cn/upload/usericon/"+curUid+".png":""
+                                        fillMode:Image.PreserveAspectCrop;asynchronous:true }
+                                }
+
+                                // 气泡
                                 Rectangle {
-                                    width: 38; height: 38
-                                    radius: 8
-                                    color: modelData.is_me ? cPrimary : _abg(modelData.sender_name || curName || "?")
-                                    anchors.top: parent.top
-                                    scale: msgRowMa.containsMouse ? 1.05 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: animFast } }
+                                    id: bubble
+                                    property int bw: Math.min(Math.max(String(txt).length*14+52,60), parent.width-52)
+                                    width: bw; height: Math.max(txtEdit.contentHeight+24, 34)
+                                    x: im ? parent.width-width-8 : 40; y: 3; radius: 12
+                                    color: im ? acc : clt(cardBg2,"#111D35")
+                                    border.width: im?0:1; border.color: clt("#D0D6E8","#1E2E50")
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: (modelData.sender_name || curName || "?")[0]
-                                        color: "white"
-                                        font.pixelSize: 15
-                                        font.weight: Font.Bold
-                                    }
-                                }
-
-                                // Bubble column
-                                Column {
-                                    id: msgCol
-                                    width: Math.min(bubbleRect.width, msgLst.width - 120)
-                                    spacing: 4
-
-                                    // Sender name (for others' messages only)
-                                    Text {
-                                        text: modelData.sender_name || ""
-                                        color: cText3
-                                        font.pixelSize: 11
-                                        visible: !modelData.is_me
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: 4
+                                    TextEdit {
+                                        id:txtEdit; anchors.left:parent.left; anchors.leftMargin:12
+                                        anchors.right:parent.right; anchors.rightMargin:12
+                                        anchors.top:parent.top; anchors.topMargin:6
+                                        height:contentHeight; readOnly:true; selectByMouse:true
+                                        text:msgRow.txt; font.pixelSize:15; color:im?"#FFFFFF":clt(text1,text1)
+                                        wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                     }
 
-                                    // Message bubble
-                                    Rectangle {
-                                        id: bubbleRect
-                                        property real maxW: Math.max(200, msgLst.width - 140)
-                                        // 用辅助 Text 测量自然宽度（无宽度限制时的宽度）
-                                        property real naturalW: measureText.implicitWidth
-                                        width: Math.min(naturalW + 28, maxW)
-                                        height: bubbleContent.implicitHeight + 24
-                                        radius: 12
+                                    Text {
+                                        anchors.right:parent.right; anchors.rightMargin:10
+                                        anchors.bottom:parent.bottom; anchors.bottomMargin:3
+                                        text: td(modelData.time||0) + " " + tf(modelData.time||0)
+                                        font.pixelSize:10; color:im?"#ffffff50":clt(text3,text3)
+                                    }
 
-                                        color: modelData.is_me ? cBubbleMe : cBubbleOther
-                                        border.color: modelData.is_me ? "transparent" : cBorder
-                                        border.width: modelData.is_me ? 0 : 1
-
-                                        // 辅助 Text：测量自然宽度（不可见）
-                                        Text {
-                                            id: measureText
-                                            visible: false
-                                            text: modelData.content || ""
-                                            font.pixelSize: 14
-                                        }
-
-                                        // 实际显示的文字（有宽度限制，自动换行）
-                                        Text {
-                                            id: bubbleContent
-                                            anchors { fill: parent; margins: 14 }
-                                            text: modelData.content || ""
-                                            color: modelData.is_me ? cBubbleMeText : cBubbleOtherText
-                                            font.pixelSize: 14
-                                            wrapMode: Text.Wrap
-                                            linkColor: cPrimary
+                                    // 右键菜单 — 使用 TapHandler 避免与 TextEdit 冲突
+                                    TapHandler {
+                                        acceptedButtons: Qt.RightButton
+                                        onTapped: function(eventPoint, button){
+                                            msgMenu._id = String(modelData.id || 0)
+                                            msgMenu._txt = msgRow.txt
+                                            msgMenu.popup()
                                         }
                                     }
-
-                                    // Time under bubble
-                                    Text {
-                                        text: _ft(modelData.time)
-                                        color: cText4
-                                        font.pixelSize: 10
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: 4
-                                        visible: true
-                                    }
                                 }
                             }
 
-                            MouseArea {
-                                id: msgRowMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.NoButton  // passive hover detection
-                            }
-                        }
-
-                        onCountChanged: {
-                            if (count > 0) positionViewAtEnd();
-                        }
-
-                        // Empty state
-                        Item {
-                            visible: msgLst.count === 0 && curUid === ""
-                            width: msgLst.width
-                            height: msgLst.height
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 16
-                                Text {
-                                    text: "\uD83D\uDCAC"
-                                    font.pixelSize: 56
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
-                                Text {
-                                    text: "从左侧选择一个聊天开始对话"
-                                    font.pixelSize: 14
-                                    color: cText3
-                                    horizontalAlignment: Text.AlignHCenter
+                            // 空状态
+                            Rectangle { anchors.centerIn:parent; visible:msgs.length===0&&!msgLoading; width:200;height:120;color:"transparent"
+                                Column { anchors.centerIn:parent; spacing:14
+                                    Text { anchors.horizontalCenter:parent.horizontalCenter;text:curUid?"✉":"👋";font.pixelSize:50;color:clt(text3,text3) }
+                                    Text { anchors.horizontalCenter:parent.horizontalCenter;text:curUid?"发送第一条消息":"左侧选择联系人";font.pixelSize:16;color:clt(text3,text3) }
                                 }
                             }
+
+                            ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded; width:5; contentItem:Rectangle{radius:3;color:clt("#A0A8C0","#404860");opacity:0.5}}
                         }
                     }
 
-                    // ── Input area ──
+                    // 分隔线
+                    Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+
+                    // 输入区域
                     Rectangle {
-                        id: inputArea
-                        width: parent.width
-                        height: 140
-                        color: "transparent"
-
+                        id: inputArea; width:parent.width; height: 124; color:"transparent"
+                        gradient: Gradient {
+                            GradientStop{position:0;color:clt("#F4F6FC","#0D1324")}
+                            GradientStop{position:1;color:clt("#ECF0F8","#090F1C")}
+                        }
                         Column {
-                            anchors { fill: parent; topMargin: 4; bottomMargin: 10; leftMargin: 16; rightMargin: 16 }
-                            spacing: 8
-
-                            // Toolbar row
-                            Row {
-                                width: parent.height > 0 ? parent.width : 0
-                                height: 28
-                                spacing: 4
-
-                                // Toolbar buttons with icons
-                                Repeater {
-                                    model: [
-                                        {icon: "\u263A", tip: "表情"},
-                                        {icon: "\u2702", tip: "截图"},
-                                        {icon: "\uD83D\uDCC1", tip: "发送文件"},
-                                        {icon: "\uD83D\uDDCF", tip: "发送图片"},
-                                        {icon: "\u23ED", tip: "历史记录"}
-                                    ]
-                                    Rectangle {
-                                        width: 30; height: 28
-                                        radius: 6
-                                        color: toolBtnMa.containsHover ? cHover : "transparent"
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData.icon
-                                            font.pixelSize: 15
-                                            color: toolBtnMa.containsHover ? cPrimary : cText3
-                                            Behavior on color { ColorAnimation { duration: animFast } }
-                                        }
-                                        MouseArea {
-                                            id: toolBtnMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            property bool containsHover: containsMouse
-                                            cursorShape: Qt.PointingHandCursor
-                                        }
-                                    }
-                                }
-
-                                Item { Layout.fillWidth: true }
-
-                                // AI mode indicator in toolbar
-                                Rectangle {
-                                    visible: aiOn
-                                    width: aiToolbarLabel.width + 16
-                                    height: 24
-                                    radius: 12
-                                    color: "#E8FFEC"
-                                    border.color: cSuccess
-                                    border.width: 1
-                                    opacity: aiOn ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: animNormal } }
-                                    Text {
-                                        id: aiToolbarLabel
-                                        anchors.centerIn: parent
-                                        text: "AI 分析已开启"
-                                        font.pixelSize: 11
-                                        color: cSuccess
-                                        font.weight: Font.DemiBold
-                                    }
-                                }
-                            }
-
-                            // Input box
+                            anchors.fill:parent; anchors.leftMargin:16; anchors.rightMargin:16; anchors.bottomMargin:10; spacing:8
                             Rectangle {
-                                width: parent.width
-                                height: 64
-                                radius: 10
-                                color: cInputBg
-                                border.color: msgIn.activeFocus ? cPrimary : cBorder
-                                border.width: msgIn.activeFocus ? 1.5 : 1
-                                Behavior on border.color { ColorAnimation { duration: animFast } }
-
-                                TextArea {
-                                    id: msgIn
-                                    anchors { fill: parent; margins: 10 }
-                                    color: cText1
-                                    font.pixelSize: 14
-                                    placeholderText: curUid ? "输入消息..." : "请先在左侧选择一个聊天"
-                                    background: Rectangle { color: "transparent" }
-                                    wrapMode: TextArea.Wrap
-                                    Keys.onReturnPressed: function(event) {
-                                        if (!(event.modifiers & Qt.ShiftModifier)) {
-                                            event.accepted = true;
-                                            _doSend();
-                                        }
-                                    }
+                                width:parent.width; height:inputArea.height-42; radius:14
+                                gradient: Gradient {
+                                    GradientStop{position:0;color:clt("#FFFFFF","#161E38")}
+                                    GradientStop{position:1;color:clt("#F6F8FE","#101832")}
                                 }
-                            }
-
-                            // Send button row
-                            Row {
-                                width: parent.width
-                                spacing: 8
-
-                                Item { Layout.fillWidth: true }
-
-                                Rectangle {
-                                    id: sendBtn
-                                    width: sendBtnMa.containsHover ? 72 : 66
-                                    height: 34
-                                    radius: 8
-                                    color: (msgIn.text.trim() && curUid) ? cPrimary : cBorder
-                                    opacity: (msgIn.text.trim() && curUid) ? 1.0 : 0.5
-                                    Behavior on width { NumberAnimation { duration: animFast } }
-                                    Behavior on color { ColorAnimation { duration: animFast } }
-                                    Behavior on opacity { NumberAnimation { duration: animFast } }
-
-                                    scale: sendBtnMa.pressed ? 0.95 : (sendBtnMa.containsHover ? 1.03 : 1.0)
-                                    Behavior on scale { NumberAnimation { duration: animFast } }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "发送"
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
-                                        color: (msgIn.text.trim() && curUid) ? "white" : cText3
-                                        Behavior on color { ColorAnimation { duration: animFast } }
-                                    }
-                                    MouseArea {
-                                        id: sendBtnMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: _doSend()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ══════════════════════════════════════
-    //  TOAST NOTIFICATION
-    // ══════════════════════════════════════
-    Rectangle {
-        id: toast
-        visible: false
-        z: 999
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 80
-        height: 40
-        radius: 20
-        width: toastTxt.implicitWidth + 44
-        color: "#1D2129EE"
-        scale: toastAnim.running ? 0.9 : 1.0
-        opacity: toastAnim.running ? 0.0 : 1.0
-
-        Text {
-            id: toastTxt
-            anchors.centerIn: parent
-            color: "white"
-            font.pixelSize: 13
-        }
-
-        SequentialAnimation {
-            id: toastAnim
-            PropertyAction { target: toast; property: "visible"; value: true }
-            ParallelAnimation {
-                NumberAnimation { target: toast; property: "scale"; from: 0.8; to: 1.0; duration: 200; easing.type: Easing.OutBack }
-                NumberAnimation { target: toast; property: "opacity"; from: 0.0; to: 1.0; duration: 200 }
-            }
-            PauseAnimation { duration: 2500 }
-            ParallelAnimation {
-                NumberAnimation { target: toast; property: "opacity"; from: 1.0; to: 0.0; duration: 200 }
-                NumberAnimation { target: toast; property: "scale"; from: 1.0; to: 0.9; duration: 200 }
-            }
-            PropertyAction { target: toast; property: "visible"; value: false }
-        }
-
-        function show(msg) {
-            toastTxt.text = msg || "";
-            toastAnim.restart();
-        }
-    }
-
-    // ══════════════════════════════════════
-    //  COOKIE INVALID POPUP
-    // ══════════════════════════════════════
-    Rectangle {
-        id: cookiePopup
-        visible: false
-        z: 800
-        anchors.centerIn: parent
-        width: 380
-        height: 190
-        radius: 14
-        color: "white"
-        border.color: cDanger
-        border.width: 2
-        scale: cookiePopVisAnim.running ? 0.9 : 1.0
-        opacity: cookiePopVisAnim.running ? 0.0 : 1.0
-
-        SequentialAnimation {
-            id: cookiePopVisAnim
-            PropertyAction { target: cookiePopup; property: "visible"; value: true }
-            ParallelAnimation {
-                NumberAnimation { target: cookiePopup; property: "scale"; from: 0.85; to: 1.0; duration: 300; easing.type: Easing.OutBack }
-                NumberAnimation { target: cookiePopup; property: "opacity"; from: 0.0; to: 1.0; duration: 200 }
-            }
-        }
-
-        Column {
-            anchors { fill: parent; margins: 24 }
-            spacing: 14
-
-            Row {
-                spacing: 10
-                Rectangle {
-                    width: 36; height: 36
-                    radius: 10
-                    color: "#FFF1F0"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\u26A0"  // warning
-                        font.pixelSize: 20
-                        color: cDanger
-                    }
-                }
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 4
-                    Text {
-                        text: "Cookie 已失效"
-                        color: cDanger
-                        font.pixelSize: 16
-                        font.weight: Font.Bold
-                    }
-                    Text {
-                        text: "请重新获取洛谷 Cookie 后保存。"
-                        color: cText2
-                        font.pixelSize: 13
-                    }
-                }
-            }
-
-            Row {
-                spacing: 10
-                Rectangle {
-                    width: 110; height: 36
-                    radius: 8
-                    color: cPrimary
-                    scale: cookieGoSetMa.pressed ? 0.95 : 1.0
-                    Behavior on scale { NumberAnimation { duration: animFast } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "去设置"
-                        color: "white"
-                        font.pixelSize: 13
-                        font.weight: Font.DemiBold
-                    }
-                    MouseArea {
-                        id: cookieGoSetMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function() { cookiePopup.visible = false; settingsPanel.visible = true; _relogin() }
-                    }
-                }
-                Rectangle {
-                    width: 80; height: 36
-                    radius: 8
-                    color: "transparent"
-                    border.color: cBorder
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: "忽略"
-                        color: cText2
-                        font.pixelSize: 13
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: cookiePopup.visible = false
-                    }
-                }
-            }
-        }
-
-        Timer {
-            id: cookieTm
-            interval: 12000
-            onTriggered: cookiePopup.visible = false
-        }
-    }
-
-    // ══════════════════════════════════════
-    //  SETTINGS PANEL (overlay modal)
-    // ══════════════════════════════════════
-    Rectangle {
-        id: settingsPanel
-        visible: false
-        z: 600
-        anchors.fill: parent
-        color: "#00000055"
-
-        // Backdrop click to close
-        MouseArea {
-            anchors.fill: parent
-            onClicked: function(mouse) {
-                var cx = mouse.x, cy = mouse.y;
-                if (cx < sc.x || cx > sc.x + sc.width || cy < sc.y || cy > sc.y + sc.height)
-                    settingsPanel.visible = false;
-            }
-        }
-
-        // Settings card
-        Rectangle {
-            id: sc
-            anchors.centerIn: parent
-            width: Math.min(parent.width - 48, 720)
-            height: Math.min(parent.height - 48, 600)
-            radius: 16
-            color: "white"
-            border.color: cBorder
-            border.width: 1
-            scale: scOpenAnim.running ? 0.92 : 1.0
-            opacity: scOpenAnim.running ? 0.0 : 1.0
-
-            SequentialAnimation {
-                id: scOpenAnim
-                PropertyAction { target: settingsPanel; property: "visible"; value: true }
-                ParallelAnimation {
-                    NumberAnimation { target: sc; property: "scale"; from: 0.92; to: 1.0; duration: 280; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: sc; property: "opacity"; from: 0.0; to: 1.0; duration: 220 }
-                }
-            }
-
-            Column {
-                anchors { fill: parent; margins: 24 }
-                spacing: 14
-
-                // Header row
-                Row {
-                    width: parent.width
-                    height: 28
-                    spacing: 8
-                    Text {
-                        text: "\u2699 设置"
-                        color: cText1
-                        font.pixelSize: 18
-                        font.weight: Font.Bold
-                    }
-                    Item { Layout.fillWidth: true }
-                    Rectangle {
-                        width: 30; height: 28
-                        radius: 6
-                        color: scCloseMa.containsHover ? cHover : "transparent"
-                        Behavior on color { ColorAnimation { duration: animFast } }
-                        Text {
-                            anchors.centerIn: parent
-                            text: "\u2715"
-                            font.pixelSize: 12
-                            color: scCloseMa.containsHover ? cText1 : cText3
-                        }
-                        MouseArea {
-                            id: scCloseMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            property bool containsHover: containsMouse
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: settingsPanel.visible = false
-                        }
-                    }
-                }
-
-                // Tab bar
-                Row {
-                    id: sTabs
-                    width: parent.height > 0 ? parent.width : 0
-                    spacing: 6
-                    property int curTab: 0
-
-                    Repeater {
-                        model: ["账号", "AI 助手", "通知声音", "服务器"]
-                        Rectangle {
-                            width: sTabsTabMa.containsHover || index === sTabs.curTab ? 78 : 70
-                            height: 32
-                            radius: 8
-                            color: index === sTabs.curTab ? cPrimary : "transparent"
-                            border.color: index === sTabs.curTab ? cPrimary : cBorder
-                            border.width: index === sTabs.curTab ? 1 : 1
-                            Behavior on width { NumberAnimation { duration: animFast } }
-                            Behavior on color { ColorAnimation { duration: animFast } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData
-                                color: index === sTabs.curTab ? "white" : cText2
-                                font.pixelSize: 12
-                                font.weight: index === sTabs.curTab ? Font.DemiBold : Font.Normal
-                                Behavior on color { ColorAnimation { duration: animFast } }
-                            }
-                            MouseArea {
-                                id: sTabsTabMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                property bool containsHover: containsMouse
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: function() { sTabs.curTab = index; stk.currentIndex = index }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    width: parent.width
-                    height: 1
-                    color: cBorder
-                }
-
-                // Tab content stack
-                StackLayout {
-                    id: stk
-                    width: parent.width
-                    height: parent.height - 130
-                    currentIndex: sTabs.curTab
-                    onCurrentIndexChanged: {
-                        // 切换 tab 时确保输入框可获得焦点
-                    }
-
-                    // ── Tab 0: Account ──
-                    ScrollView {
-                        id: tab0
-                        contentWidth: availableWidth
-                        clip: true
-                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                        Column {
-                            width: tab0.availableWidth
-                            spacing: 14
-
-                            // UID field
-                            Column {
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "用户 ID (UID)"; color: cText2; font.pixelSize: 12 }
-                                Rectangle {
-                                    width: parent.width; height: 38
-                                    radius: 8
-                                    color: "#F7F8FA"
-                                    border.color: uidFld.activeFocus ? cPrimary : cBorder
-                                    border.width: uidFld.activeFocus ? 1.5 : 1
-                                    Behavior on border.color { ColorAnimation { duration: animFast } }
-                                    TextField {
-                                        id: uidFld
-                                        anchors { fill: parent; margins: 10 }
-                                        color: cText1
-                                        font.pixelSize: 13
-                                        placeholderText: "例如 1049425"
-                                        background: Rectangle { color: "transparent" }
-                                    }
-                                }
-                            }
-
-                            // Cookie field
-                            Column {
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "Cookie"; color: cText2; font.pixelSize: 12 }
-                                Rectangle {
-                                    width: parent.width; height: 80
-                                    radius: 8
-                                    color: "#F7F8FA"
-                                    border.color: cookieFld.activeFocus ? cPrimary : cBorder
-                                    border.width: cookieFld.activeFocus ? 1.5 : 1
-                                    Behavior on border.color { ColorAnimation { duration: animFast } }
+                                border.width:1; border.color:mi.activeFocus?acc:clt("#D8DDF0","#1E2E50")
+                                ScrollView {
+                                    anchors.fill:parent; anchors.margins:2; clip:true
+                                    ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded;width:8;contentItem:Rectangle{radius:4;color:clt("#A0A8C0","#404860");opacity:0.6}}
                                     TextArea {
-                                        id: cookieFld
-                                        anchors { fill: parent; margins: 10 }
-                                        color: cText1
-                                        font.pixelSize: 11
-                                        wrapMode: TextArea.Wrap
-                                        placeholderText: "粘贴洛谷 Cookie..."
-                                        background: Rectangle { color: "transparent" }
+                                        id:mi; anchors.left:parent.left; anchors.leftMargin:12
+                                        anchors.right:parent.right; anchors.rightMargin:12; padding:12
+                                        font.pixelSize:16; color:clt(text1,text1); enabled:curUid!==""
+                                        wrapMode:TextEdit.WordWrap; selectByMouse:true
+                                        placeholderText:curUid?"Ctrl+Enter 发送  Enter 换行":"请先选择联系人"
+                                        background:null
+                                        Keys.onPressed:function(e){if(e.key===Qt.Key_Return&&(e.modifiers&Qt.ControlModifier)){sendMsg();e.accepted=true}}
                                     }
                                 }
                             }
-
-                            // Buttons row
-                            Row { spacing: 10
-                                Rectangle {
-                                    width: 100; height: 36
-                                    radius: 8
-                                    color: cPrimary
-                                    scale: testLoginMa.pressed ? 0.95 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: animFast } }
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "测试登录"
-                                        color: "white"
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
+                            Row { width:parent.width; spacing:10
+                                Item { Layout.fillWidth:true;height:1 }
+                                Text { anchors.verticalCenter:parent.verticalCenter; text:mi.length+" 字"; font.pixelSize:12; color:mi.length>3000?red:clt(text3,text3) }
+                                Rectangle { width:72;height:34;radius:12
+                                    gradient: Gradient{
+                                        GradientStop{position:0;color:sbh.containsMouse?"#818CF8":acc}
+                                        GradientStop{position:1;color:sbh.containsMouse?"#A78BFA":Qt.darker(acc,1.05)}
                                     }
-                                    MouseArea {
-                                        id: testLoginMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() {
-                                            var c = cookieFld.text.trim();
-                                            if (!c) { toast.show("请输入 Cookie"); return; }
-                                            bridge.testLogin(uidFld.text.trim(), c);
-                                        }
-                                    }
-                                }
-                                Rectangle {
-                                    width: 72; height: 36
-                                    radius: 8
-                                    color: "transparent"
-                                    border.color: cBorder
-                                    border.width: 1
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "保存"
-                                        color: cText2
-                                        font.pixelSize: 13
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() {
-                                            try {
-                                                var c = JSON.parse(bridge.getConfig() || "{}");
-                                                if (!c.luogu) c.luogu = {};
-                                                c.luogu.cookie = cookieFld.text.trim();
-                                                c.luogu.user_id = uidFld.text.trim();
-                                                bridge.saveConfig(JSON.stringify(c));
-                                                toast.show("已保存");
-                                            } catch(e) {}
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle { width: parent.width; height: 1; color: cBorder }
-
-                            // Current user info
-                            Column { spacing: 6
-                                Text { text: "当前登录状态"; color: cText2; font.pixelSize: 12 }
-                                Text { text: "用户名: " + (myName || "未登录"); color: cText1; font.pixelSize: 13 }
-                                Text { text: "UID: " + (myUid || "未知"); color: cText3; font.pixelSize: 12 }
-                            }
-
-                            Rectangle {
-                                width: 140; height: 34
-                                radius: 8
-                                color: "transparent"
-                                border.color: cBorder
-                                border.width: 1
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "刷新头像缓存"
-                                    color: cText2
-                                    font.pixelSize: 12
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: function() { bridge.refreshAllAvatars(); toast.show("头像缓存已刷新") }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── Tab 1: AI Assistant ──
-                    ScrollView {
-                        id: tab1
-                        contentWidth: availableWidth
-                        clip: true
-                        Column {
-                            width: tab1.availableWidth
-                            spacing: 14
-
-                            // AI toggle row
-                            Row {
-                                spacing: 12
-                                Text { text: "启用 AI 分析"; color: cText1; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                Rectangle {
-                                    width: 48; height: 26
-                                    radius: 13
-                                    color: aiOn ? cPrimary : cBorder
-                                    Rectangle {
-                                        width: 22; height: 22
-                                        radius: 11
-                                        color: "white"
-                                        x: aiOn ? 24 : 2
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.InOutCubic } }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() { aiOn = !aiOn; _saveCfg() }
-                                    }
-                                }
-                            }
-
-                            // Keyword field
-                            Column {
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "重要关键词"; color: cText2; font.pixelSize: 12 }
-                                Rectangle {
-                                    width: parent.width; height: 38
-                                    radius: 8
-                                    color: "#F7F8FA"
-                                    border.color: kwFld.activeFocus ? cPrimary : cBorder
-                                    border.width: kwFld.activeFocus ? 1.5 : 1
-                                    TextField {
-                                        id: kwFld
-                                        anchors { fill: parent; margins: 10 }
-                                        color: cText1
-                                        font.pixelSize: 13
-                                        text: kw
-                                        background: Rectangle { color: "transparent" }
-                                        onTextChanged: { kw = text; _saveCfg() }
-                                    }
-                                }
-                            }
-
-                            // Mode list
-                            Text { text: "AI 模式配置"; color: cText2; font.pixelSize: 12 }
-                            ListView {
-                                id: modeLv
-                                width: parent.width
-                                height: 140
-                                model: modeList
-                                spacing: 8
-                                clip: true
-                                delegate: Rectangle {
-                                    required property string mid
-                                    required property string name
-                                    required property string prompt
-                                    width: modeLv.width
-                                    height: 58
-                                    radius: 10
-                                    color: mid === curMode ? cPrimaryLight : "#FAFBFC"
-                                    border.color: mid === curMode ? cPrimary : cBorder
-                                    border.width: 1
-                                    Behavior on color { ColorAnimation { duration: animFast } }
-
-                                    Row {
-                                        anchors { fill: parent; margins: 12 }
-                                        spacing: 10
-                                        Column {
-                                            width: parent.width - 76
-                                            spacing: 4
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            Text { text: name; color: cText1; font.pixelSize: 13; font.weight: Font.DemiBold }
-                                            TextField {
-                                                width: parent.width
-                                                color: cText3
-                                                font.pixelSize: 11
-                                                text: prompt || ""
-                                                background: Rectangle { color: "transparent" }
-                                                onTextChanged: _doprompt(mid, text)
-                                            }
-                                        }
-                                        Rectangle {
-                                            width: 60; height: 28
-                                            radius: 6
-                                            color: mid === curMode ? cPrimary : "transparent"
-                                            border.color: mid === curMode ? "transparent" : cBorder
-                                            border.width: 1
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: mid === curMode ? "使用中" : "选择"
-                                                color: mid === curMode ? "white" : cText2
-                                                font.pixelSize: 11
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: function() {
-                                                    curMode = mid;
-                                                    bridge.setMode(mid);
-                                                    _saveCfg();
-                                                    modeLv.model = modeList;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── Tab 2: Notifications ──
-                    ScrollView {
-                        id: tab2
-                        contentWidth: availableWidth
-                        clip: true
-                        Column {
-                            width: tab2.availableWidth
-                            spacing: 14
-
-                            // Notification toggle
-                            Row { spacing: 12
-                                Text { text: "弹窗通知"; color: cText1; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                Rectangle {
-                                    width: 48; height: 26
-                                    radius: 13
-                                    color: notifyOn ? cPrimary : cBorder
-                                    Rectangle {
-                                        width: 22; height: 22; radius: 11; color: "white"
-                                        x: notifyOn ? 24 : 2
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Behavior on x { NumberAnimation { duration: 180 } }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() { notifyOn = !notifyOn; _saveCfg() }
-                                    }
-                                }
-                            }
-
-                            // Sound toggle
-                            Row { spacing: 12
-                                Text { text: "提示音"; color: cText1; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                Rectangle {
-                                    width: 48; height: 26
-                                    radius: 13
-                                    color: soundOn ? cPrimary : cBorder
-                                    Rectangle {
-                                        width: 22; height: 22; radius: 11; color: "white"
-                                        x: soundOn ? 24 : 2
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        Behavior on x { NumberAnimation { duration: 180 } }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() { soundOn = !soundOn; _saveCfg() }
-                                    }
-                                }
-                            }
-
-                            // Sound file selector
-                            Column {
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "提示音文件"; color: cText2; font.pixelSize: 12 }
-                                Row {
-                                    spacing: 8
-                                    width: parent.width
-                                    Rectangle {
-                                        width: parent.width - 56
-                                        height: 36
-                                        radius: 8
-                                        color: "#F7F8FA"
-                                        border.color: cBorder
-                                        border.width: 1
-                                        Text {
-                                            anchors { fill: parent; margins: 10 }
-                                            text: soundFile || "系统默认提示音"
-                                            color: soundFile ? cText1 : cText3
-                                            font.pixelSize: 12
-                                            elide: Text.ElideLeft
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                    }
-                                    Rectangle {
-                                        width: 48; height: 36
-                                        radius: 8
-                                        color: cPrimary
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "选择"
-                                            color: "white"
-                                            font.pixelSize: 12
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: function() {
-                                                var f = bridge.pickSoundFile();
-                                                if (f) { soundFile = f; _saveCfg(); toast.show("已选择提示音") }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // ── Tab 3: Server & Appearance ──
-                    ScrollView {
-                        id: tab3
-                        contentWidth: availableWidth
-                        clip: true
-                        Column {
-                            width: tab3.availableWidth
-                            spacing: 14
-
-                            // Server URL
-                            Column {
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "Worker 服务器地址"; color: cText2; font.pixelSize: 12 }
-                                Rectangle {
-                                    width: parent.width; height: 38
-                                    radius: 8
-                                    color: "#F7F8FA"
-                                    border.color: sUrlFld.activeFocus ? cPrimary : cBorder
-                                    border.width: sUrlFld.activeFocus ? 1.5 : 1
-                                    TextField {
-                                        id: sUrlFld
-                                        anchors { fill: parent; margins: 10 }
-                                        color: cText1
-                                        font.pixelSize: 13
-                                        text: svrUrl
-                                        placeholderText: "https://lgchat.zhl2010.ccwu.cc"
-                                        background: Rectangle { color: "transparent" }
-                                    }
-                                }
-                            }
-
-                            Row { spacing: 8
-                                Rectangle {
-                                    width: 72; height: 36
-                                    radius: 8
-                                    color: cPrimary
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "保存"
-                                        color: "white"
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: function() { svrUrl = sUrlFld.text.trim(); _saveCfg(); toast.show("已保存") }
-                                    }
-                                }
-                                Rectangle {
-                                    width: 72; height: 36
-                                    radius: 8
-                                    color: "transparent"
-                                    border.color: cBorder
-                                    border.width: 1
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "同步"
-                                        color: cText2
-                                        font.pixelSize: 13
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: bridge.forceSync
-                                    }
-                                }
-                            }
-
-                            Rectangle { width: parent.width; height: 1; color: cBorder }
-
-                            // Quota display
-                            Column { spacing: 6
-                                Text {
-                                    text: "每日配额: " + svrRem + " / " + (svrTot >= 999999 ? "\u221E" : svrTot)
-                                    color: svrOk ? cSuccess : cDanger
-                                    font.pixelSize: 15
-                                    font.weight: Font.Bold
-                                }
-                                Text {
-                                    text: sAllow ? "\u2605 超级允许模式 (无限)" : (svrOk ? "正常使用中" : "已达今日上限")
-                                    color: sAllow ? cWarning : cText2
-                                    font.pixelSize: 12
-                                }
-                            }
-
-                            Rectangle { width: parent.width; height: 1; color: cBorder }
-
-                            // Appearance section
-                            Text { text: "界面外观"; color: cText1; font.pixelSize: 14; font.weight: Font.Bold }
-
-                            // Theme selector
-                            Column {
-                                width: parent.width
-                                spacing: 8
-                                Text { text: "主题配色"; color: cText2; font.pixelSize: 12; font.weight: Font.DemiBold }
-                                Row { spacing: 10
-                                    Repeater {
-                                        model: ["blue", "dark", "pink", "green", "purple"]
-                                        Rectangle {
-                                            width: 52; height: 52
-                                            radius: 12
-                                            color: modelData === "blue" ? "#1677FF" :
-                                                   modelData === "dark" ? "#1A1A1A" :
-                                                   modelData === "pink" ? "#FF6B9D" :
-                                                   modelData === "green" ? "#00B42A" : "#8B5CF6"
-                                            border.width: currentTheme === modelData ? 3 : 1
-                                            border.color: currentTheme === modelData ? cPrimary : cBorder
-                                            
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData === "blue" ? "蓝" :
-                                                       modelData === "dark" ? "暗" :
-                                                       modelData === "pink" ? "粉" :
-                                                       modelData === "green" ? "绿" : "紫"
-                                                color: modelData === "dark" ? "white" : "white"
-                                                font.pixelSize: 16
-                                                font.weight: Font.Bold
-                                            }
-                                            
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: applyTheme(modelData)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Background type selector
-                            Row { spacing: 8
-                                Text { text: "背景类型:"; color: cText2; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
-                                Repeater {
-                                    model: ["纯色", "渐变", "图片"]
-                                    Rectangle {
-                                        width: bgTypeMa.containsHover || (bgType === ("solid","gradient","image")[index]) ? 54 : 48
-                                        height: 28
-                                        radius: 6
-                                        color: bgType === ("solid","gradient","image")[index] ? cPrimary : "transparent"
-                                        border.color: bgType === ("solid","gradient","image")[index] ? cPrimary : cBorder
-                                        border.width: 1
-                                        Behavior on width { NumberAnimation { duration: animFast } }
-                                        Behavior on color { ColorAnimation { duration: animFast } }
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData
-                                            font.pixelSize: 11
-                                            color: bgType === ("solid","gradient","image")[index] ? "white" : cText2
-                                        }
-                                        MouseArea {
-                                            id: bgTypeMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: function() { bgType = ("solid","gradient","image")[index]; _saveBg() }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Solid color picker (when solid)
-                            Column {
-                                visible: bgType === "solid"
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "背景颜色"; color: cText2; font.pixelSize: 12 }
-                                Row { spacing: 8
-                                    Repeater {
-                                        model: ["#F5F6F7", "#FFF7E6", "#F0FDF4", "#EFF6FF", "#FDF4FF", "#FFF0F0", "#E8F3FF", "#F5F5F5", "#1D2129"]
-                                        Rectangle {
-                                            width: 28; height: 28
-                                            radius: 6
-                                            color: modelData
-                                            border.width: bgSolidColor === modelData ? 2 : 1
-                                            border.color: bgSolidColor === modelData ? cPrimary : cBorder
-                                            scale: bgClrMa.containsMouse ? 1.1 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: animFast } }
-                                            MouseArea {
-                                                id: bgClrMa
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: function() { bgSolidColor = modelData; _saveBg() }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Gradient colors (when gradient)
-                            Column {
-                                visible: bgType === "gradient"
-                                width: parent.width
-                                spacing: 5
-                                Text { text: "渐变起始色"; color: cText2; font.pixelSize: 12 }
-                                Row { spacing: 8
-                                    Repeater {
-                                        model: ["#E8EEFE", "#FFE4E1", "#E0F7FA", "#F3E5F5", "#FFF8E1", "#E8F5E9", "#FCE4EC", "#E3F2FD"]
-                                        Rectangle {
-                                            width: 28; height: 28
-                                            radius: 6
-                                            color: modelData
-                                            border.width: bgGradientStart === modelData ? 2 : 1
-                                            border.color: bgGradientStart === modelData ? cPrimary : cBorder
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: function() { bgGradientStart = modelData; _saveBg() }
-                                            }
-                                        }
-                                    }
-                                }
-                                Text { text: "渐变结束色"; color: cText2; font.pixelSize: 12 }
-                                Row { spacing: 8
-                                    Repeater {
-                                        model: ["#F5F0F0", "#FFF0DB", "#E0F2F1", "#FCE4EC", "#FFF9C4", "#DCEDC8", "#F8BBD0", "#BBDEFB"]
-                                        Rectangle {
-                                            width: 28; height: 28
-                                            radius: 6
-                                            color: modelData
-                                            border.width: bgGradientEnd === modelData ? 2 : 1
-                                            border.color: bgGradientEnd === modelData ? cPrimary : cBorder
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: function() { bgGradientEnd = modelData; _saveBg() }
-                                            }
-                                        }
-                                    }
+                                    Text { anchors.centerIn:parent;text:"发送";color:"white";font.pixelSize:15;font.bold:true }
+                                    MouseArea { id:sbh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:sendMsg() }
                                 }
                             }
                         }
@@ -2372,193 +661,458 @@ ApplicationWindow {
         }
     }
 
-    // Save background config function
-    function _saveBg() {
-        try {
-            var c = JSON.parse(bridge.getConfig() || "{}");
-            if (!c.bg) c.bg = {};
-            c.bg.type = bgType;
-            c.bg.solid_color = bgSolidColor;
-            c.bg.gradient_start = bgGradientStart;
-            c.bg.gradient_end = bgGradientEnd;
-            c.bg.image_url = bgImageUrl;
-            bridge.saveConfig(JSON.stringify(c));
-        } catch(e) {}
+    // ═══ CONTEXT MENUS ═══
+    Menu {
+        id: msgMenu; property int _id:0; property string _txt:""
+        background: Rectangle{radius:12;color:clt("#FFFFFF","#111830");border.color:clt("#D8DDF0","#1E2E50");border.width:1}
+        MenuItem { text:"复制"; onTriggered:{bridge.copyText(msgMenu._txt);toast("已复制")} }
+        MenuItem { text:"删除此消息"; onTriggered:{
+            bridge.deleteMessage(String(msgMenu._id))
+            for(var i=0;i<msgs.length;i++){if(String(msgs[i].id||0)===String(msgMenu._id)){msgs.splice(i,1);break}}
+            toast("已删除")
+        }}
+    }
+    Menu {
+        id: cm; property string _u:""
+        MenuItem { text:"置顶/取消置顶"; onTriggered: tPin(cm._u) }
+        MenuItem { text:"收藏/取消收藏"; onTriggered: tFav(cm._u) }
     }
 
-    // ══════════════════════════════════════
-    //  IMPORTANT MESSAGE POPUP (bottom-right)
-    // ══════════════════════════════════════
-            //   Important message popup (beautified) ──
-        Rectangle {
-            id: impPopup
-            visible: false
-            z: 900
-            anchors { right: parent.right; bottom: parent.bottom }
-            anchors.rightMargin: 20
-            anchors.bottomMargin: 20
-            width: 360
-            height: 200
-            radius: 16
-            
-            // Gradient background
+    // ═══ PROFILE POPUP ═══
+    Popup {
+        id: pf; x:Math.min(parent.width-260,parent.width*0.62); y:62
+        width: 250; height: 200; padding:0; modal:true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        background: Rectangle{color:clt("#FFFFFF","#0F162A");radius:18;border.color:clt(bd1,"#1E3050");border.width:1}
+        Column { anchors.centerIn:parent; spacing:12; width:190
+            Rectangle { width:72;height:72;radius:36;anchors.horizontalCenter:parent.horizontalCenter;color:clt("#E4E8F4","#1A2850")
+                Image { anchors.fill:parent;anchors.margins:2
+                    source: profUid ? "https://cdn.luogu.com.cn/upload/usericon/" + profUid + ".png" : ""
+                    fillMode:Image.PreserveAspectCrop;asynchronous:true }
+            }
+            Text { anchors.horizontalCenter:parent.horizontalCenter; text:profName||"未知"; font.pixelSize:17; font.bold:true; color:clt(text1,text1) }
+            Text { anchors.horizontalCenter:parent.horizontalCenter; text:"UID: "+profUid; font.pixelSize:13; color:clt(text2,text2) }
+            Rectangle { anchors.horizontalCenter:parent.horizontalCenter; width:130;height:34;radius:12;color:acc
+                Text { anchors.centerIn:parent;text:"发消息";color:"white";font.pixelSize:14;font.bold:true }
+                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:{pf.close();selUser(profUid,profName)} }
+            }
+        }
+    }
+
+    // ═══ SETTINGS DIALOG ═══
+    Popup {
+        id: stg; modal:true; focus:true; closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
+        x:(win.width-width)/2; y:(win.height-height)/2
+        width: Math.min(win.width-40,620); height: Math.min(win.height-40,620)
+        padding:0
+        background: Rectangle{color:clt("#FFFFFF","#0C1324");radius:18;border.color:clt(bd1,"#1A2C50");border.width:1}
+
+        property string uidInput: ""
+        property string clientIdInput: ""
+        property string localApiUrl: ""
+        property string localApiKey: ""
+        property string localApiModel: ""
+        property string localCustomSysPrompt: ""
+        property string localKw: "zhl重要信息"
+        property string localSrv: ""
+        property string localSysPrompt: ""
+        property string localQTemplate: ""
+        property int tab: 0
+        property bool localNPopup: true
+        property string localNMode: "ai"
+        property bool localNSound: true
+        property string localNType: "system"
+        property string localNFile: ""
+        property string localPrefix: ""
+        property string localSuffix: ""
+
+        onOpened: {
+            var c = JSON.parse(bridge.getConfig())
+            uidInput = c.luogu ? (c.luogu.user_id || "") : ""
+            var raw = c.luogu ? (c.luogu.cookie || "") : ""
+            var cidm = raw.match(/__client_id=([^;]+)/)
+            if(cidm) clientIdInput = cidm[1]
+            else if(raw.indexOf("_uid=") >= 0) clientIdInput = raw.replace(/_uid=\d+;?\s*/,"").trim()
+            else clientIdInput = raw
+
+            useDefaultAI = c.ai ? (c.ai.default !== false) : true
+            localKw = c.ai ? (c.ai.important_keyword || "zhl重要信息") : "zhl重要信息"
+            localSysPrompt = c.ai ? (c.ai.system_prompt || "") : ""
+            localQTemplate = c.ai ? (c.ai.question_template || "") : ""
+            if (c.ai && c.ai.custom) {
+                localApiUrl = c.ai.custom.base_url || ""
+                localApiKey = c.ai.custom.api_key || ""
+                localApiModel = c.ai.custom.model || ""
+                localCustomSysPrompt = c.ai.custom.custom_system_prompt || ""
+            }
+            localSrv = c.server ? (c.server.url || "") : ""
+            if (c.notification) {
+                localNPopup = c.notification.enabled !== false
+                localNMode = c.notification.popup_mode || "ai"
+                localNSound = c.notification.sound_enabled !== false
+                localNType = c.notification.sound_type || "system"
+                localNFile = c.notification.sound_file || ""
+                localPrefix = c.notification.popup_prefix || ""
+                localSuffix = c.notification.popup_suffix || ""
+            }
+        }
+
+        Column { width:parent.width; height:parent.height
+            // 标题栏
+            Rectangle { width:parent.width; height:50; color:"transparent"
+                Row { anchors.left:parent.left; anchors.leftMargin:18; anchors.verticalCenter:parent.verticalCenter; spacing:10
+                    Text { text:"⚙"; font.pixelSize:22; anchors.verticalCenter:parent.verticalCenter }
+                    Text { text:"设置"; font.pixelSize:19; font.bold:true; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
+                }
+                Rectangle { anchors.right:parent.right; anchors.rightMargin:14; anchors.verticalCenter:parent.verticalCenter
+                    width:30;height:30;radius:9; color: csh.containsMouse ? red : clt("#EEF0F8","#121830")
+                    Text { anchors.centerIn:parent;text:"✕";font.pixelSize:15;color:csh.containsMouse?"white":clt(text2,text2) }
+                    MouseArea { id:csh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:stg.close() }
+                }
+            }
+            Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+            // 标签栏
+            Rectangle { width:parent.width; height:48; color:clt("#F2F4FC","#060C1A")
+                Row { anchors.centerIn:parent; spacing:6
+                    Repeater {
+                        model: ["账号","AI","通知","服务器"]
+                        Rectangle { width:90; height:34; radius:12
+                            color: index === stg.tab ? acc : "transparent"
+                            Text { anchors.centerIn:parent; text:modelData; font.pixelSize:14; color: index===stg.tab ? "white" : clt(text2,text2) }
+                            MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: stg.tab=index }
+                        }
+                    }
+                }
+            }
+            Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+
+            // 内容区
+            Flickable { id:sf; width:parent.width; height:parent.height-143; contentHeight:scol.height+24; clip:true
+                Column { id:scol; width:parent.width-40; anchors.horizontalCenter:parent.horizontalCenter; spacing:14; topPadding:16
+
+                    // ═══ TAB 0: 账号 ═══
+                    Column { width:parent.width; spacing:12; visible:stg.tab===0; height:stg.tab===0?undefined:0
+                        Text { text:"洛谷 UID"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                        Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:15; color:clt(text1,text1)
+                                text:stg.uidInput; onTextChanged:stg.uidInput=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                        Text { text:"Cookie (client_id)"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                        Text { text:"输入 __client_id 的值，自动转标准格式 _uid=xxx; __client_id=xxx"; font.pixelSize:11; color:clt(text3,text3) }
+                        Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                text:stg.clientIdInput; onTextChanged:stg.clientIdInput=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                        Row { spacing:12
+                            Rectangle { width:110; height:38; radius:12; color:acc
+                                Text { anchors.centerIn:parent; text:"验证登录"; color:"white"; font.pixelSize:14; font.bold:true }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:bridge.testLogin(stg.uidInput,stg.clientIdInput) }
+                            }
+                            Rectangle { width:90; height:38; radius:12; color:clt("#EEF0F8","#121830")
+                                Text { anchors.centerIn:parent; text:"刷新C3VK"; font.pixelSize:12; color:clt(text2,text2) }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:bridge.refreshC3VK() }
+                            }
+                        }
+                        Text { text:myUid?"已登录 UID: " + myUid:"未登录"; font.pixelSize:13; color:myUid?green:clt(text3,text3) }
+                        Text { text:bridge.hasSuperAllow()?"超级权限·无限制":"标准模式"; font.pixelSize:13; color:bridge.hasSuperAllow()?orange:green }
+                    }
+
+                    // ═══ TAB 1: AI ═══
+                    Column { width:parent.width; spacing:14; visible:stg.tab===1; height:stg.tab===1?undefined:0
+                        // 启用开关
+                        Row { spacing:12
+                            Text { text:"启用 AI 判断"; font.pixelSize:15; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
+                            Rectangle { width:50; height:28; radius:14; anchors.verticalCenter:parent.verticalCenter; color:aiOn ? acc : clt("#CCD0E0","#283050")
+                                Rectangle { width:24;height:24;radius:12;x:aiOn?24:2;anchors.verticalCenter:parent.verticalCenter;color:"white";Behavior on x{NumberAnimation{duration:150}} }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: aiOn = !aiOn }
+                            }
+                        }
+
+                        // AI 提供商选择
+                        Text { text:"AI 提供商"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                        Row { spacing:8
+                            Rectangle { width:(parent.width-8)/2; height:60; radius:14
+                                color: useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
+                                border.color: useDefaultAI ? acc : clt(bd1,bd2); border.width: useDefaultAI ? 2 : 1
+                                Column { anchors.centerIn:parent; spacing:3
+                                    Text { text:"默认"; font.pixelSize:15; font.bold:useDefaultAI; color:clt(text1,text1); anchors.horizontalCenter:parent.horizontalCenter }
+                                    Text { text:"系统内置"; font.pixelSize:11; color:clt(text3,text3); anchors.horizontalCenter:parent.horizontalCenter }
+                                }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: useDefaultAI=true }
+                            }
+                            Rectangle { width:(parent.width-8)/2; height:60; radius:14
+                                color: !useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
+                                border.color: !useDefaultAI ? acc : clt(bd1,bd2); border.width: !useDefaultAI ? 2 : 1
+                                Column { anchors.centerIn:parent; spacing:3
+                                    Text { text:"自定义 API"; font.pixelSize:15; font.bold:!useDefaultAI; color:clt(text1,text1); anchors.horizontalCenter:parent.horizontalCenter }
+                                    Text { text:!useDefaultAI?"已配置":"自行提供"; font.pixelSize:11; color:clt(text3,text3); anchors.horizontalCenter:parent.horizontalCenter }
+                                }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: useDefaultAI=false }
+                            }
+                        }
+
+                        // 自定义 AI 配置（仅在自定义模式下显示）
+                        Column { visible:!useDefaultAI; spacing:12; width:parent.width
+                            Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+                            Text { text:"API Base URL"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                    text:stg.localApiUrl; onTextChanged:stg.localApiUrl=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                            }
+                            Text { text:"API Key"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                    echoMode:TextInput.Password; text:stg.localApiKey; onTextChanged:stg.localApiKey=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                            }
+                            Text { text:"模型名称"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                    text:stg.localApiModel; onTextChanged:stg.localApiModel=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                            }
+                            Text { text:"系统提示词 (可自定义)"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                            Rectangle { width:parent.width; height:72; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                                TextArea { anchors.fill:parent; anchors.leftMargin:12;anchors.rightMargin:12;anchors.topMargin:8;anchors.bottomMargin:8
+                                    font.pixelSize:13; color:clt(text1,text1); text:stg.localCustomSysPrompt; onTextChanged:stg.localCustomSysPrompt=text
+                                    wrapMode:TextEdit.WordWrap; background:null; selectByMouse:true }
+                            }
+                        }
+
+                        // 检测子串
+                        Text { text:"检测子串 (重要消息关键词)"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                        Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                text:stg.localKw; onTextChanged:stg.localKw=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                    }
+
+                    // ═══ TAB 2: 通知 ═══
+                    Column { width:parent.width; spacing:12; visible:stg.tab===2; height:stg.tab===2?undefined:0
+                        Row { spacing:12
+                            Text { text:"启用弹窗通知"; font.pixelSize:15; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
+                            Rectangle { width:50;height:28;radius:14;anchors.verticalCenter:parent.verticalCenter;color:stg.localNPopup?acc:clt("#CCD0E0","#283050")
+                                Rectangle { width:24;height:24;radius:12;x:stg.localNPopup?24:2;anchors.verticalCenter:parent.verticalCenter;color:"white";Behavior on x{NumberAnimation{duration:150}} }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:stg.localNPopup=!stg.localNPopup }
+                            }
+                        }
+                        Row { spacing:12
+                            Text { text:"启用提示音"; font.pixelSize:15; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
+                            Rectangle { width:50;height:28;radius:14;anchors.verticalCenter:parent.verticalCenter;color:stg.localNSound?acc:clt("#CCD0E0","#283050")
+                                Rectangle { width:24;height:24;radius:12;x:stg.localNSound?24:2;anchors.verticalCenter:parent.verticalCenter;color:"white";Behavior on x{NumberAnimation{duration:150}} }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:stg.localNSound=!stg.localNSound }
+                            }
+                        }
+                        Row { spacing:12
+                            Text { text:"提示音类型:"; font.pixelSize:14; color:clt(text2,text2); anchors.verticalCenter:parent.verticalCenter }
+                            Repeater {
+                                model: ["系统", "MP3"]
+                                Rectangle { width:70; height:32; radius:10
+                                    color: stg.localNType === ["system","mp3"][index] ? acc : clt("#EEF0F8","#121830")
+                                    Text { anchors.centerIn:parent; text:modelData; font.pixelSize:13; color:stg.localNType===["system","mp3"][index]?"white":clt(text2,text2) }
+                                    MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:stg.localNType=["system","mp3"][index] }
+                                }
+                            }
+                        }
+                        Text { visible:stg.localNType==="mp3"; text:"MP3 文件路径"; font.pixelSize:13; color:clt(text2,text2) }
+                        Rectangle { visible:stg.localNType==="mp3"; width:parent.width; height:40; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:13; color:clt(text1,text1)
+                                text:stg.localNFile; onTextChanged:stg.localNFile=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                        Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+                        Text { text:"弹窗模式"; font.pixelSize:14; font.bold:true; color:clt(text1,text1) }
+                        Row { spacing:10
+                            Repeater {
+                                model: ["AI判断", "直接提示", "不提示"]
+                                Rectangle { width:80; height:32; radius:10
+                                    color: stg.localNMode === ["ai","direct","none"][index] ? acc : clt("#EEF0F8","#121830")
+                                    Text { anchors.centerIn:parent; text:modelData; font.pixelSize:12; color:stg.localNMode===["ai","direct","none"][index]?"white":clt(text2,text2) }
+                                    MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:stg.localNMode=["ai","direct","none"][index] }
+                                }
+                            }
+                        }
+                        Text { text:"弹窗前缀 (如：提示：)"; font.pixelSize:12; color:clt(text2,text2) }
+                        Rectangle { width:parent.width; height:38; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:13; color:clt(text1,text1)
+                                text:stg.localPrefix; onTextChanged:stg.localPrefix=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                        Text { text:"弹窗后缀 (如：。)"; font.pixelSize:12; color:clt(text2,text2) }
+                        Rectangle { width:parent.width; height:38; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:13; color:clt(text1,text1)
+                                text:stg.localSuffix; onTextChanged:stg.localSuffix=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                    }
+
+                    // ═══ TAB 3: 服务器 ═══
+                    Column { width:parent.width; spacing:12; visible:stg.tab===3; height:stg.tab===3?undefined:0
+                        Text { text:"Worker URL"; font.pixelSize:14; color:clt(text2,text2) }
+                        Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
+                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
+                                text:stg.localSrv; onTextChanged:stg.localSrv=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
+                        }
+                        Row { spacing:12
+                            Rectangle { width:90; height:36; radius:12; color:acc
+                                Text { anchors.centerIn:parent; text:"同步"; color:"white"; font.pixelSize:14; font.bold:true }
+                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:{
+                                    var s=JSON.parse(bridge.syncNow()); serverRem=s.remaining||0; serverTotal=s.total||0; toast("剩余:"+serverRem+"/"+serverTotal) }}
+                            }
+                        }
+                        Text { text:"剩余: " + serverRem + "/" + serverTotal; font.pixelSize:14; color:clt(text2,text2) }
+                    }
+                }
+                ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded;width:6;contentItem:Rectangle{radius:3;color:clt("#A0A8C0","#404860");opacity:0.6}}
+            }
+
+            Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
+            Rectangle { width:parent.width; height:44; color:"transparent"
+                Row { anchors.right:parent.right; anchors.rightMargin:16; anchors.verticalCenter:parent.verticalCenter; spacing:12
+                    Rectangle { width:80;height:34;radius:12;color:clt("#EEF0F8","#121830")
+                        Text { anchors.centerIn:parent; text:"取消"; font.pixelSize:14; color:clt(text2,text2) }
+                        MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:stg.close() }
+                    }
+                    Rectangle { width:80;height:34;radius:12;color:acc
+                        Text { anchors.centerIn:parent; text:"保存"; color:"white"; font.pixelSize:14; font.bold:true }
+                        MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:{
+                            var C = {
+                                luogu: { user_id: stg.uidInput, cookie: stg.clientIdInput },
+                                ai: {
+                                    enabled: aiOn,
+                                    important_keyword: stg.localKw,
+                                    default: useDefaultAI,
+                                    system_prompt: stg.localSysPrompt,
+                                    question_template: stg.localQTemplate,
+                                    custom: {
+                                        base_url: stg.localApiUrl,
+                                        api_key: stg.localApiKey,
+                                        model: stg.localApiModel,
+                                        custom_system_prompt: stg.localCustomSysPrompt
+                                    }
+                                },
+                                notification: {
+                                    enabled: stg.localNPopup,
+                                    sound_enabled: stg.localNSound,
+                                    sound_type: stg.localNType,
+                                    sound_file: stg.localNFile,
+                                    popup_mode: stg.localNMode,
+                                    popup_filter: "all",
+                                    popup_prefix: stg.localPrefix,
+                                    popup_suffix: stg.localSuffix
+                                },
+                                server: { url: stg.localSrv },
+                                theme: { mode: themeMode, accent: acc }
+                            }
+                            bridge.saveConfig(JSON.stringify(C)); toast("设置已保存"); stg.close()
+                        }}
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══ ERROR DIALOG ═══
+    Dialog {
+        id: errDlg; modal:true; closePolicy:Popup.NoAutoClose
+        x:(win.width-width)/2; y:(win.height-height)/2; width:Math.min(win.width-40,380); padding:20
+        background:Rectangle{color:clt("#FFFFFF","#0C1324");radius:16;border.color:red;border.width:1}
+        property string errMsg: ""; property var retryFn: null
+        Column { width:parent.width; spacing:16
+            Text { text:"⚠ 错误"; font.pixelSize:19; font.bold:true; color:red }
+            Text { width:parent.width; text:errDlg.errMsg; font.pixelSize:14; color:clt(text1,text1); wrapMode:Text.WordWrap }
+            Row { anchors.right:parent.right; spacing:12
+                Rectangle { width:80;height:34;radius:10;color:clt("#EEF0F8","#121830")
+                    Text { anchors.centerIn:parent;text:"重试";font.pixelSize:13;color:clt(text2,text2) }
+                    MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:{errDlg.close();if(errDlg.retryFn)errDlg.retryFn()} }
+                }
+                Rectangle { width:80;height:34;radius:10;color:red
+                    Text { anchors.centerIn:parent;text:"关闭";color:"white";font.pixelSize:13 }
+                    MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:errDlg.close() }
+                }
+            }
+        }
+    }
+    function showError(msg,fn) { errDlg.errMsg=msg; errDlg.retryFn=fn||null; errDlg.open() }
+
+    // ═══ TOAST ═══
+    Rectangle {
+        id: toastRect; visible:false; z:1100; anchors.horizontalCenter:parent.horizontalCenter; y:14
+        width: tt.width + 50; height: 38; radius: 19
+        color: clt(Qt.rgba(0.15,0.15,0.2,0.94),Qt.rgba(0.06,0.1,0.25,0.95))
+        Text { id:tt; anchors.centerIn:parent; color:"white"; font.pixelSize:15 }
+        SequentialAnimation {
+            id:ta; PropertyAction{target:toastRect;property:"visible";value:true}
+            PropertyAction{target:toastRect;property:"opacity";value:1}
+            PauseAnimation{duration:2000}
+            NumberAnimation{target:toastRect;property:"opacity";to:0;duration:300}
+            PropertyAction{target:toastRect;property:"visible";value:false}
+        }
+    }
+
+    // ═══ NOTIFICATION POPUP (Glass Morphism, 右下角) ═══
+    property string notifTitle: ""; property string notifBody: ""
+    property string notifSender: ""; property string notifUid: ""
+    property bool notifExpanded: false
+
+    Popup {
+        id: notifPopup; x: win.width - 330; y: win.height - 170; width: 310
+        height: notifExpanded ? Math.min(notifContent.height + 70, 400) : 100
+        padding: 0; modal: false; closePolicy: Popup.NoAutoClose
+
+        background: Rectangle {
+            radius: 18; clip: true
             gradient: Gradient {
-                orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: "#FFF1F0" }
-                GradientStop { position: 1.0; color: "#FFFFFF" }
+                GradientStop{position:0;color:clt(Qt.rgba(0.96,0.97,0.99,0.93),Qt.rgba(0.06,0.1,0.25,0.95))}
+                GradientStop{position:1;color:clt(Qt.rgba(0.92,0.94,0.98,0.89),Qt.rgba(0.04,0.07,0.2,0.91))}
             }
-            
-            border.color: cDanger
-            border.width: 2
-            
-            // Shadow
-            layer.enabled: true
-            
-            // Entrance animation
-            PropertyAnimation on scale {
-                id: impEnterAnim
-                from: 0.8
-                to: 1.0
-                duration: 400
-                easing.type: Easing.OutBack
-            }
-            
-            PropertyAnimation on opacity {
-                id: impOpacityAnim
-                from: 0.0
-                to: 1.0
-                duration: 300
-            }
-            
-            Timer {
-                id: impTimer
-                interval: 8000
-                onTriggered: {
-                    impOpacityAnim.from = 1.0;
-                    impOpacityAnim.to = 0.0;
-                    impOpacityAnim.start();
-                    impHideTimer.start();
-                }
-            }
-            
-            Timer {
-                id: impHideTimer
-                interval: 300
-                onTriggered: impPopup.visible = false
-            }
-            
-            Column {
-                anchors { fill: parent; margins: 20 }
-                spacing: 12
-                
-                Row {
-                    spacing: 10
-                    
-                    // Warning icon
-                    Rectangle {
-                        width: 36; height: 36
-                        radius: 10
-                        color: cDanger
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            text: "!"
-                            color: "white"
-                            font.pixelSize: 20
-                            font.weight: Font.Bold
-                        }
+            border.color: clt(Qt.rgba(0.6,0.65,1,0.25),Qt.rgba(0.3,0.4,0.8,0.2)); border.width: 1
+        }
+        Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+
+        Column { id: notifOuter; anchors.centerIn:parent; width: parent.width - 24
+            Row { spacing: 12; width: parent.width
+                Column { spacing: 4; width: parent.width - 80
+                    Text { text: notifTitle; font.pixelSize: 16; font.bold: true; color: clt(text1,text1); elide: Text.ElideRight; width: parent.width }
+                    Text {
+                        text: notifExpanded ? notifBody : (notifBody.length > 42 ? notifBody.substring(0, 40) + "…" : notifBody)
+                        font.pixelSize: 13; color: clt(text2,text2); wrapMode: Text.WordWrap; width: parent.width
                     }
-                    
-                    Column {
-                        spacing: 4
-                        Text {
-                            text: "重要消息检测"
-                            color: cDanger
-                            font.pixelSize: 16
-                            font.weight: Font.Bold
-                        }
-                        Text {
-                            id: impSenderName
-                            text: ""
-                            color: cText2
-                            font.pixelSize: 13
-                        }
-                    }
-                    
-                    Item { Layout.fillWidth: true }
-                    
-                    // Close button
-                    Rectangle {
-                        width: 28; height: 28
-                        radius: 14
-                        color: closeMa.containsMouse ? cHover : "transparent"
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            text: "✕"
-                            color: cText3
-                            font.pixelSize: 14
-                        }
-                        
-                        MouseArea {
-                            id: closeMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                impPopup.visible = false;
+                    Column { id: notifContent; visible: notifExpanded; width: parent.width; spacing: 10; topPadding: 8
+                        TextArea { id: notifBodyFull; width: parent.width; readOnly: true; text: notifBody
+                            font.pixelSize: 14; color: clt(text1,text1); wrapMode: TextEdit.WordWrap; selectByMouse: true; background: null }
+                        Row { spacing: 8
+                            Rectangle { width: 70; height: 30; radius: 10; color: acc
+                                Text { anchors.centerIn:parent; text:"回复"; color:"white"; font.pixelSize:13; font.bold:true }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
+                                    onClicked: { selUser(notifUid,notifSender); notifExpanded=false; notifPopup.close() } }
+                            }
+                            Rectangle { width: 60; height: 30; radius: 10; color: clt("#EEF0F8","#121830")
+                                Text { anchors.centerIn:parent; text:"收起"; font.pixelSize:12; color:clt(text2,text2) }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: notifExpanded=false }
                             }
                         }
                     }
                 }
-                
-                // Message content
-                Rectangle {
-                    width: parent.width
-                    height: 60
-                    radius: 10
-                    color: "#F7F8FA"
-                    
-                    Text {
-                        id: impContent
-                        anchors { fill: parent; margins: 12 }
-                        text: ""
-                        color: cText1
-                        font.pixelSize: 13
-                        wrapMode: Text.Wrap
-                        elide: Text.ElideRight
+                Column { spacing: 6
+                    Rectangle { width: 30; height: 30; radius: 10; color: clt("#EEF0F8","#121830")
+                        Text { anchors.centerIn:parent; text: notifExpanded ? "−" : "+"; font.pixelSize: 16; color: clt(text2,text2); font.bold: true }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: notifExpanded = !notifExpanded }
+                    }
+                    Rectangle { width: 30; height: 30; radius: 10; color: clt("#EEF0F8","#121830")
+                        Text { anchors.centerIn:parent; text:"✕"; font.pixelSize: 13; color: clt(text2,text2) }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: { notifExpanded = false; notifPopup.close() } }
                     }
                 }
-                
-                // Tip text
-                Text {
-                    id: impTip
-                    width: parent.width
-                    text: ""
-                    color: cDanger
-                    font.pixelSize: 12
-                    wrapMode: Text.Wrap
-                }
-            }
-            
-            function show(mid, content, sender_name, sender_uid, analysis, tip) {
-                impContent.text = content || "";
-                impSenderName.text = sender_name || "";
-                impTip.text = tip || "";
-                impPopup.visible = true;
-                impEnterAnim.start();
-                impOpacityAnim.from = 0.0;
-                impOpacityAnim.to = 1.0;
-                impOpacityAnim.start();
-                impTimer.start();
             }
         }
-        
-        function onImportantPopup(mid, content, sender_name, sender_uid, analysis, tip) {
-            impName.text = "发件人: " + sender_name
-            impContent.text = content
-            impTip.text = tip || ""
-            impAnim.restart()
+        SequentialAnimation {
+            id: notifAnim; NumberAnimation{target:notifPopup;property:"opacity";from:0;to:1;duration:350}
+            PauseAnimation{duration:8000}
+            NumberAnimation{target:notifPopup;property:"opacity";to:0;duration:400}
+            PropertyAction{target:notifPopup;property:"visible";value:false}
         }
     }
+
+    Component.onCompleted: {
+        reloadCfg(); refreshList(); bridge.startWS(); autoRefreshTimer.start()
+        Qt.callLater(function(){ bridge.refreshChatList() })
+        try{ var s = JSON.parse(bridge.getServerStatus()); serverRem = s.remaining || 0; serverTotal = s.total || 0 } catch(e) {}
+    }
+    Timer { id: autoRefreshTimer; interval: 30000; repeat: true; onTriggered: { if(myUid) bridge.refreshChatList() } }
 }

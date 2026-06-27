@@ -1,0 +1,11 @@
+config.json
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+*.spec
+sounds/
+data/
+log/
+avatars/

@@ -1,0 +1,10 @@
+name = "luogu-chat-worker"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "chat_kv"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[observability]
+enabled = true
