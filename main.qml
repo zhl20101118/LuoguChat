@@ -585,13 +585,16 @@ ApplicationWindow {
                                         font.pixelSize:10; color:im?"#ffffff50":clt(text3,text3)
                                     }
 
-                                    // 右键菜单 — 使用 TapHandler 避免与 TextEdit 冲突
-                                    TapHandler {
+                                    // 右键菜单 — MouseArea 只截获右键，左键穿透给 TextEdit
+                                    MouseArea {
+                                        anchors.fill: parent
                                         acceptedButtons: Qt.RightButton
-                                        onTapped: function(eventPoint, button){
+                                        onClicked: function(mouse) {
                                             msgMenu._id = String(modelData.id || 0)
                                             msgMenu._txt = msgRow.txt
-                                            msgMenu.popup()
+                                            var gpos = bubble.mapToItem(null, mouse.x, mouse.y)
+                                            msgMenu.x = gpos.x; msgMenu.y = gpos.y
+                                            msgMenu.open()
                                         }
                                     }
                                 }
