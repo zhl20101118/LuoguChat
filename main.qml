@@ -788,36 +788,34 @@ ApplicationWindow {
                                 }
 
                                 // 自己消息 — 气泡偏右
-                                Row {
+                                Rectangle {
                                     visible: im; anchors.right: parent.right; anchors.rightMargin: 4
-                                    Item { width: parent.width - 8 - Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth); height: 1 }
-                                    Rectangle {
-                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                        width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
-                                        color: pending ? Qt.lighter(acc, 1.3) : acc
-                                        TextEdit {
-                                            id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
-                                            anchors.right:parent.right; anchors.rightMargin:12
-                                            anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true; selectByMouse:true
-                                            text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
-                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
-                                        }
-                                        Text {
-                                            anchors.right:parent.right; anchors.rightMargin:10
-                                            anchors.bottom:parent.bottom; anchors.bottomMargin:6
-                                            text: pending ? "发送中..." : tFull(modelData.time||0)
-                                            font.pixelSize:10; color:"#ffffff60"
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent; acceptedButtons: Qt.RightButton
-                                            onClicked: function(mouse) {
-                                                msgMenu._id = String(modelData.id || 0)
-                                                msgMenu._txt = msgRow.txt
-                                                var gpos = this.mapToItem(null, mouse.x, mouse.y)
-                                                msgMenu.x = gpos.x; msgMenu.y = gpos.y
-                                                msgMenu.open()
-                                            }
+                                    anchors.left: undefined
+                                    property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
+                                    width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
+                                    color: pending ? Qt.lighter(acc, 1.3) : acc
+                                    TextEdit {
+                                        id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
+                                        anchors.right:parent.right; anchors.rightMargin:12
+                                        anchors.top:parent.top; anchors.topMargin:10
+                                        height:contentHeight; readOnly:true; selectByMouse:true
+                                        text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
+                                        wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
+                                    }
+                                    Text {
+                                        anchors.right:parent.right; anchors.rightMargin:10
+                                        anchors.bottom:parent.bottom; anchors.bottomMargin:6
+                                        text: pending ? "发送中..." : tFull(modelData.time||0)
+                                        font.pixelSize:10; color:"#ffffff60"
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                        onClicked: function(mouse) {
+                                            msgMenu._id = String(modelData.id || 0)
+                                            msgMenu._txt = msgRow.txt
+                                            var gpos = this.mapToItem(null, mouse.x, mouse.y)
+                                            msgMenu.x = gpos.x; msgMenu.y = gpos.y
+                                            msgMenu.open()
                                         }
                                     }
                                 }
