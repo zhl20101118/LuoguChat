@@ -139,7 +139,7 @@ class Config:
                 "custom": {"base_url": "", "api_key": "", "model": "", "custom_system_prompt": ""}
             },
             "server": {"url": ""},
-            "theme": {"mode": 2, "accent": "#6366F1", "avatar_rounded": false},
+            "theme": {"mode": 2, "accent": "#6366F1", "avatar_rounded": False},
             "favorites": [], "pins": [],
             "notification": {
                 "enabled": True, "sound_enabled": True, "sound_type": "system",
