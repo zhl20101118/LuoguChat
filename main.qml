@@ -657,8 +657,7 @@ ApplicationWindow {
                                         source: curAvatarSource || getAvatar(curUid)
                                         fillMode:Image.PreserveAspectCrop; asynchronous:true }
                                     MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
-                                        onClicked: { if(curUid){ bridge.requestAvatar(curUid) } }
-                                        onDoubleClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
+                                        onClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
                                 }
                                 Column { anchors.verticalCenter:parent.verticalCenter; spacing:2
                                     Row { spacing:8
@@ -738,10 +737,10 @@ ApplicationWindow {
                                 property string txt: (modelData.content || modelData.text || "")
                                 property string msgId: String(modelData.id || 0)
                                 property bool pending: modelData._pending || false
-                                height: childrenRect.height + 6
 
                                 // 黄金分割线: 左至右61.8%
                                 property int maxBubbleWidth: Math.floor((parent ? parent.width : 400) * 0.618)
+                                height: Math.max(40, childrenRect.height)
 
                                 // 别人消息 — 左侧头像 + 气泡偏左
                                 Row {
@@ -757,13 +756,14 @@ ApplicationWindow {
                                     }
                                     Rectangle {
                                         property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                        width: bw; height: Math.max(34, txtEditIn.contentHeight + 36); radius: 16
+                                        width: bw; height: contentHeight + 36; radius: 16
                                         color: clt(cardBg2,"#111D35"); border.color: clt("#D0D6E8","#1E2E50"); border.width: 1
+                                        property int contentHeight: txtEditIn.contentHeight
                                         TextEdit {
                                             id:txtEditIn; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true; selectByMouse:true
+                                            height:contentHeight; readOnly:true
                                             text:msgRow.txt; font.pixelSize:15; color:clt(text1,text1)
                                             wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
@@ -773,17 +773,6 @@ ApplicationWindow {
                                             text: tFull(modelData.time||0)
                                             font.pixelSize:10; color:clt(text3,text3)
                                         }
-                                        // 右键透明遮罩
-                                        Rectangle { anchors.fill: parent; color: "transparent"
-                                            TapHandler {
-                                                acceptedButtons: Qt.RightButton
-                                                onTapped: {
-                                                    msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
-                                                    msgMenu.x = point.position.x + 10; msgMenu.y = point.position.y + 10
-                                                    msgMenu.open()
-                                                }
-                                            }
-                                        }
                                     }
                                 }
 
@@ -792,13 +781,14 @@ ApplicationWindow {
                                     visible: im; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
                                     Rectangle {
                                         property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                        width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
+                                        width: bw; height: contentHeight + 36; radius: 16
                                         color: pending ? Qt.lighter(acc, 1.3) : acc
+                                        property int contentHeight: txtEditMe.contentHeight
                                         TextEdit {
                                             id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true; selectByMouse:true
+                                            height:contentHeight; readOnly:true
                                             text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
                                             wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
@@ -808,18 +798,7 @@ ApplicationWindow {
                                             text: pending ? "发送中..." : tFull(modelData.time||0)
                                             font.pixelSize:10; color:"#ffffff60"
                                         }
-                                        Rectangle { anchors.fill: parent; color: "transparent"
-                                            TapHandler {
-                                                acceptedButtons: Qt.RightButton
-                                                onTapped: {
-                                                    msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
-                                                    msgMenu.x = point.position.x + 10; msgMenu.y = point.position.y + 10
-                                                    msgMenu.open()
-                                                }
-                                            }
-                                        }
                                     }
-                                    // 自己头像
                                     Rectangle { width:34; height:34; radius:avatarRounded?8:17
                                         color:clt("#D8DDF0","#1E2850"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
@@ -827,6 +806,17 @@ ApplicationWindow {
                                             fillMode:Image.PreserveAspectCrop;asynchronous:true }
                                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
                                             onClicked: { if(myUid) bridge.requestAvatar(myUid) } }
+                                    }
+                                }
+
+                                // 右键菜单 — 放在 delegate 最上层 (最后渲染)
+                                MouseArea {
+                                    anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                    onClicked: function(mouse) {
+                                        msgMenu._id = String(modelData.id || 0)
+                                        msgMenu._txt = msgRow.txt
+                                        msgMenu.x = mouse.x + 10; msgMenu.y = mouse.y + 10
+                                        msgMenu.open()
                                     }
                                 }
                             }
