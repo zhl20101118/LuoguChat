@@ -13,6 +13,7 @@ ApplicationWindow {
 
     property int themeMode: 2
     property string acc: "#6366F1"
+    property bool avatarRounded: false
     property var avatarCache: ({})
     property int avatarVer: 0
     property string curAvatarSource: ""
@@ -90,6 +91,7 @@ ApplicationWindow {
         myUid = c.luogu ? (c.luogu.user_id || "") : ""
         themeMode = c.theme ? (c.theme.mode !== undefined ? c.theme.mode : 2) : 2
         acc = c.theme ? (c.theme.accent || "#6366F1") : "#6366F1"
+        avatarRounded = c.theme ? (c.theme.avatar_rounded || false) : false
         favList = c.favorites || []
         pinList = c.pins || []
         aiOn = c.ai ? (c.ai.enabled || false) : false
@@ -281,7 +283,7 @@ ApplicationWindow {
 
                     // 头像
                     Rectangle {
-                        width:44; height:44; radius:22; anchors.horizontalCenter:parent.horizontalCenter
+                        width:44; height:44; radius:avatarRounded?10:22; anchors.horizontalCenter:parent.horizontalCenter
                         color: clt("#D8DDF0","#1E2850")
                         Image {
                             anchors.fill:parent; anchors.margins:2
@@ -449,7 +451,7 @@ ApplicationWindow {
 
                             // 头像
                             Rectangle {
-                                width: 46; height: 46; radius: 23; anchors.verticalCenter: parent.verticalCenter
+                                width: 46; height: 46; radius: avatarRounded ? 10 : 23; anchors.verticalCenter: parent.verticalCenter
                                 color: clt("#E4E8F4","#152040"); clip: true
                                 Image {
                                     anchors.fill: parent; anchors.margins: 1
@@ -594,7 +596,7 @@ ApplicationWindow {
                             onDoubleClicked: function(mouse){ if(win.visibility===Window.Maximized) win.showNormal(); else win.showMaximized() }
 
                             Row { anchors.verticalCenter:parent.verticalCenter; spacing:12
-                                Rectangle { width:40; height:40; radius:20; color:clt("#E4E8F4","#152040")
+                                Rectangle { width:40; height:40; radius:avatarRounded?10:20; color:clt("#E4E8F4","#152040")
                                     Image { anchors.fill:parent; anchors.margins:1
                                         source: curAvatarSource || getAvatar(curUid)
                                         fillMode:Image.PreserveAspectCrop; asynchronous:true }
@@ -681,7 +683,7 @@ ApplicationWindow {
                                 property string msgId: String(modelData.id || 0)
 
                     // 对方头像
-                    Rectangle { visible:!im; opacity:im?0:1; width:34;height:34;radius:17
+                    Rectangle { visible:!im; opacity:im?0:1; width:34;height:34;radius:avatarRounded?8:17
                         anchors.left:parent.left; anchors.leftMargin:6; y:parent.height-height-6
                         color:clt("#DCE0F0","#1A2848"); clip:true
                                     Image { anchors.centerIn:parent; width:28; height:28
@@ -818,7 +820,7 @@ ApplicationWindow {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
         background: Rectangle{color:clt("#FFFFFF","#0F162A");radius:18;border.color:clt(bd1,"#1E3050");border.width:1}
         Column { anchors.centerIn:parent; spacing:12; width:190
-            Rectangle { width:72;height:72;radius:36;anchors.horizontalCenter:parent.horizontalCenter;color:clt("#E4E8F4","#1A2850")
+            Rectangle { width:72;height:72;radius:avatarRounded?14:36;anchors.horizontalCenter:parent.horizontalCenter;color:clt("#E4E8F4","#1A2850")
                 Image { anchors.fill:parent;anchors.margins:2
                     source: getAvatar(profUid)
                     fillMode:Image.PreserveAspectCrop;asynchronous:true }
@@ -938,7 +940,7 @@ ApplicationWindow {
             Rectangle { width:parent.width; height:50; color:clt("#F6F8FF","#080F1E")
                 Row { anchors.centerIn: parent; spacing: 8
                     Repeater {
-                        model: ["账号","通知","服务器"]
+                        model: ["账号","通知","服务器","外观"]
                         Rectangle { width:86; height:36; radius:18
                             color: index === stg.tab ? acc : "transparent"
                             border.color: index === stg.tab ? "transparent" : clt(bd1,bd2)
@@ -1055,6 +1057,26 @@ ApplicationWindow {
                         }
                         Text { text:"剩余: " + serverRem + "/" + serverTotal; font.pixelSize:14; color:clt(text2,text2) }
                     }
+
+                    // ═══ TAB 3: 外观 ═══
+                    Column { width:parent.width; spacing:14; visible:stg.tab===3; height:stg.tab===3?undefined:0
+                        Text { text:"头像圆角"; font.pixelSize:15; font.weight:Font.DemiBold; color:clt(text1,text1) }
+                        Text { font.pixelSize:12; color:clt(text3,text3); text:"开启后所有头像从正圆变为圆角矩形。"; wrapMode:Text.WordWrap; width:parent.width-8 }
+                        Row { spacing:12
+                            Rectangle { width:100; height:36; radius:12
+                                color: avatarRounded ? acc : clt("#EEF0F8","#121830")
+                                border.color: avatarRounded ? "transparent" : clt(bd1,bd2); border.width: avatarRounded ? 0 : 1
+                                Text { anchors.centerIn:parent; text:"圆角矩形"; font.pixelSize:13; color: avatarRounded ? "white" : clt(text2,text2) }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: avatarRounded = true }
+                            }
+                            Rectangle { width:80; height:36; radius:12
+                                color: !avatarRounded ? acc : clt("#EEF0F8","#121830")
+                                border.color: !avatarRounded ? "transparent" : clt(bd1,bd2); border.width: !avatarRounded ? 0 : 1
+                                Text { anchors.centerIn:parent; text:"正圆"; font.pixelSize:13; color: !avatarRounded ? "white" : clt(text2,text2) }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: avatarRounded = false }
+                            }
+                        }
+                    }
                 }
                 ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded;width:6;contentItem:Rectangle{radius:3;color:clt("#A0A8C0","#404860");opacity:0.6}}
             }
@@ -1082,7 +1104,7 @@ ApplicationWindow {
                                     popup_suffix: stg.localSuffix
                                 },
                                 server: { url: stg.localSrv },
-                                theme: { mode: themeMode, accent: acc }
+                                theme: { mode: themeMode, accent: acc, avatar_rounded: avatarRounded }
                             }
                             bridge.saveConfig(JSON.stringify(C)); toast("设置已保存")
                         }}
