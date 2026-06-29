@@ -446,7 +446,7 @@ ApplicationWindow {
                         }
                         property int tm: modelData.time || 0
                         property string ucolor: modelData.color || ""
-                        property int unread: (modelData.status === 1) ? 1 : 0
+                        property int unread: listVer >= 0 ? (modelData.status === 1 ? 1 : 0) : 0
                         Behavior on color { ColorAnimation { duration: 160 } }
 
                         Row {
