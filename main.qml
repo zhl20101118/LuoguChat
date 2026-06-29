@@ -682,7 +682,7 @@ ApplicationWindow {
                                 Text { text: "刷新中"; font.pixelSize: 12; color: orange; anchors.verticalCenter: parent.verticalCenter }
                             }
                             // 加载指示器（右上角）
-                            Row { visible: msgLoading; spacing: 6; anchors.verticalCenter: parent.verticalCenter
+                            Row { visible: msgLoading && msgs.length === 0; spacing: 6; anchors.verticalCenter: parent.verticalCenter
                                 Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; color: acc
                                     RotationAnimation on rotation{from:0;to:360;duration:700;loops:Animation.Infinite;running:msgLoading} }
                                 Text { text: "加载中"; font.pixelSize: 12; color: acc; anchors.verticalCenter: parent.verticalCenter }
@@ -773,12 +773,13 @@ ApplicationWindow {
                                             text: tFull(modelData.time||0)
                                             font.pixelSize:10; color:clt(text3,text3)
                                         }
-                                        // 右键透明遮罩（必须在 TextEdit 之后，覆盖在上面）
+                                        // 右键透明遮罩
                                         Rectangle { anchors.fill: parent; color: "transparent"
-                                            MouseArea { anchors.fill: parent; acceptedButtons: Qt.RightButton
-                                                onClicked: function(mouse) {
+                                            TapHandler {
+                                                acceptedButtons: Qt.RightButton
+                                                onTapped: {
                                                     msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
-                                                    var gp = mapToItem(null, mouse.x, mouse.y); msgMenu.x = gp.x; msgMenu.y = gp.y
+                                                    msgMenu.x = point.position.x + 10; msgMenu.y = point.position.y + 10
                                                     msgMenu.open()
                                                 }
                                             }
@@ -808,10 +809,11 @@ ApplicationWindow {
                                             font.pixelSize:10; color:"#ffffff60"
                                         }
                                         Rectangle { anchors.fill: parent; color: "transparent"
-                                            MouseArea { anchors.fill: parent; acceptedButtons: Qt.RightButton
-                                                onClicked: function(mouse) {
+                                            TapHandler {
+                                                acceptedButtons: Qt.RightButton
+                                                onTapped: {
                                                     msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
-                                                    var gp = mapToItem(null, mouse.x, mouse.y); msgMenu.x = gp.x; msgMenu.y = gp.y
+                                                    msgMenu.x = point.position.x + 10; msgMenu.y = point.position.y + 10
                                                     msgMenu.open()
                                                 }
                                             }
