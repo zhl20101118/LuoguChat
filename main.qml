@@ -738,64 +738,89 @@ ApplicationWindow {
                                 property string txt: (modelData.content || modelData.text || "")
                                 property string msgId: String(modelData.id || 0)
                                 property bool pending: modelData._pending || false
+                                height: childrenRect.height + 6
 
-                                // 使用 Row 对齐
+                                // 黄金分割线: 左至右61.8%
+                                property int maxBubbleWidth: Math.floor(parent.width * 0.618)
+
+                                // 别人消息 — 左侧头像 + 气泡偏左
                                 Row {
-                                    anchors.left: parent.left; anchors.leftMargin: 4
-                                    anchors.right: parent.right; anchors.rightMargin: 4
-                                    height: childrenRect.height + 6
-
-                                    Item { visible: !im; width: 40; height: 1 }
-
-                                    // 对方头像 (底部对齐)
-                                    Rectangle { visible:!im; width:34;height:34;radius:avatarRounded?8:17
+                                    visible: !im; anchors.left: parent.left; anchors.leftMargin: 4
+                                    width: parent.width - 8
+                                    Rectangle { width:34; height:34; radius:avatarRounded?8:17
                                         color:clt("#DCE0F0","#1A2848"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
                                             source: curAvatarSource || getAvatar(curUid)
                                             fillMode:Image.PreserveAspectCrop;asynchronous:true }
+                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
+                                            onClicked: { if(curUid) bridge.requestAvatar(curUid) } }
                                     }
-
-                                    Item { visible: !im; width: 6; height: 1 }
-
-                                    // 气泡
+                                    Item { width: 8; height: 1 }
                                     Rectangle {
-                                        id: bubble
-                                        property int bw: Math.min(Math.max(String(txt).length*14+52,60), msgList.width-80)
-                                        width: bw; height: Math.max(34, txtEdit.contentHeight + 36); radius: 16
-                                        color: pending ? Qt.lighter(acc, 1.3) : (im ? acc : clt(cardBg2,"#111D35"))
-                                        border.width: im?0:1; border.color: clt("#D0D6E8","#1E2E50")
-
+                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
+                                        width: bw; height: Math.max(34, txtEditIn.contentHeight + 36); radius: 16
+                                        color: clt(cardBg2,"#111D35"); border.color: clt("#D0D6E8","#1E2E50"); border.width: 1
                                         TextEdit {
-                                            id:txtEdit; anchors.left:parent.left; anchors.leftMargin:12
+                                            id:txtEditIn; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
                                             height:contentHeight; readOnly:true; selectByMouse:true
-                                            text:msgRow.txt; font.pixelSize:15; color:im?"#FFFFFF":clt(text1,text1)
+                                            text:msgRow.txt; font.pixelSize:15; color:clt(text1,text1)
                                             wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
-
                                         Text {
                                             anchors.right:parent.right; anchors.rightMargin:10
                                             anchors.bottom:parent.bottom; anchors.bottomMargin:6
-                                            text: pending ? "发送中..." : tFull(modelData.time||0)
-                                            font.pixelSize:10; color:im?"#ffffff60":clt(text3,text3)
+                                            text: tFull(modelData.time||0)
+                                            font.pixelSize:10; color:clt(text3,text3)
                                         }
-
                                         MouseArea {
                                             anchors.fill: parent; acceptedButtons: Qt.RightButton
                                             onClicked: function(mouse) {
                                                 msgMenu._id = String(modelData.id || 0)
                                                 msgMenu._txt = msgRow.txt
-                                                var gpos = bubble.mapToItem(null, mouse.x, mouse.y)
+                                                var gpos = this.mapToItem(null, mouse.x, mouse.y)
                                                 msgMenu.x = gpos.x; msgMenu.y = gpos.y
                                                 msgMenu.open()
                                             }
                                         }
                                     }
-
-                                    Item { Layout.fillWidth: true; visible: im; height: 1 }
                                 }
-                                height: childrenRect.height
+
+                                // 自己消息 — 气泡偏右
+                                Row {
+                                    visible: im; anchors.right: parent.right; anchors.rightMargin: 4
+                                    Item { width: parent.width - 8 - Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth); height: 1 }
+                                    Rectangle {
+                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
+                                        width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
+                                        color: pending ? Qt.lighter(acc, 1.3) : acc
+                                        TextEdit {
+                                            id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
+                                            anchors.right:parent.right; anchors.rightMargin:12
+                                            anchors.top:parent.top; anchors.topMargin:10
+                                            height:contentHeight; readOnly:true; selectByMouse:true
+                                            text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
+                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
+                                        }
+                                        Text {
+                                            anchors.right:parent.right; anchors.rightMargin:10
+                                            anchors.bottom:parent.bottom; anchors.bottomMargin:6
+                                            text: pending ? "发送中..." : tFull(modelData.time||0)
+                                            font.pixelSize:10; color:"#ffffff60"
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                msgMenu._id = String(modelData.id || 0)
+                                                msgMenu._txt = msgRow.txt
+                                                var gpos = this.mapToItem(null, mouse.x, mouse.y)
+                                                msgMenu.x = gpos.x; msgMenu.y = gpos.y
+                                                msgMenu.open()
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             // 空状态
