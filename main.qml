@@ -156,9 +156,9 @@ ApplicationWindow {
         if (!u) return
         curUid = u; curName = n || ("用户"+u); curColor = c || ""
         curAvatarSource = avatarCache[u] || ""
-        // 清除该用户的未读标记
+        // 清除该用户的未读气泡 (status 1=unread → 2=read)
         for (var i = 0; i < chatList.length; i++) {
-            if (chatList[i]._u === u) { chatList[i].status = 0; break }
+            if (chatList[i]._u === u) { chatList[i].status = 2; break }
         }
         listVer += 1
         loadMsgs(u, -1); bridge.requestAvatar(u)
@@ -441,7 +441,7 @@ ApplicationWindow {
                         }
                         property int tm: modelData.time || 0
                         property string ucolor: modelData.color || ""
-                        property int unread: modelData.status || 0
+                        property int unread: modelData.status === 1 ? 1 : 0
                         Behavior on color { ColorAnimation { duration: 160 } }
 
                         Row {
@@ -520,18 +520,13 @@ ApplicationWindow {
                             anchors.topMargin: 14
                         }
 
-                        // 未读红点
+                        // 未读气泡
                         Rectangle {
                             visible: unread > 0
-                            width: unread > 99 ? 26 : 20; height: 20; radius: 10
+                            width: 10; height: 10; radius: 5
                             color: red
                             anchors.right: parent.right; anchors.rightMargin: 14
-                            anchors.top: dateText.bottom; anchors.topMargin: 6
-                            Text {
-                                anchors.centerIn: parent
-                                text: unread > 99 ? "99+" : String(unread)
-                                font.pixelSize: 11; color: "white"; font.bold: true
-                            }
+                            anchors.top: parent.top; anchors.topMargin: 14
                         }
 
                         MouseArea {
