@@ -20,6 +20,7 @@ ALLOW_FILE = os.path.join(BASE_DIR, "zhl_super_allow.txt")
 AI_LOG_DIR = os.path.join(BASE_DIR, "aichat")
 os.makedirs(AI_LOG_DIR, exist_ok=True)
 AI_LOG_FILE = os.path.join(AI_LOG_DIR, "log.txt")
+AVATAR_DIR = CACHE_DIR  # 头像缓存在 data/ 目录
 
 def _log_ai(tag, messages, response):
     """记录 AI 对话到 aichat/log.txt"""
