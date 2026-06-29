@@ -14,6 +14,7 @@ ApplicationWindow {
     property int themeMode: 2
     property string acc: "#6366F1"
     property var avatarCache: ({})
+    property int avatarVer: 0
     property string curAvatarSource: ""
     property bool dark: themeMode === 1
     function clt(light, dk) { return themeMode === 1 ? dk : light }
@@ -133,6 +134,9 @@ ApplicationWindow {
                 return (b.time || 0) - (a.time || 0)
             })
             chatList = raw; listVer += 1
+            // 批量预取所有头像
+            var uids = []; for (var k = 0; k < raw.length; k++) { var uid = raw[k]._u; if (uid && !avatarCache[uid]) uids.push(uid) }
+            if (uids.length > 0) bridge.prefetchAvatars(JSON.stringify(uids))
         } catch(e) { chatList = []; listVer += 1 }
         loading = false
     }
@@ -233,6 +237,7 @@ ApplicationWindow {
         function onAvatarReady(uid, path) {
             var fileUrl = "file:///" + path
             avatarCache[uid] = fileUrl
+            avatarVer += 1
             if (uid === curUid) curAvatarSource = fileUrl
         }
     }
@@ -438,7 +443,7 @@ ApplicationWindow {
                                 color: clt("#E4E8F4","#152040"); clip: true
                                 Image {
                                     anchors.fill: parent; anchors.margins: 1
-                                    source: getAvatar(uid)
+                                    source: avatarVer >= 0 ? getAvatar(uid) : getAvatar(uid)
                                     fillMode: Image.PreserveAspectCrop; asynchronous: true
                                     onStatusChanged: if(status===Image.Error) source=""
                                 }

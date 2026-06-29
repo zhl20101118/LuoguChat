@@ -427,9 +427,9 @@ class LuoguAPI:
             return []
         except: return []
 
-    def download_avatar(self, uid):
+    def download_avatar(self, uid, force=False):
         local = os.path.join(AVATAR_DIR, f"{uid}.png")
-        if os.path.exists(local) and os.path.getsize(local) > 0: return local
+        if not force and os.path.exists(local) and os.path.getsize(local) > 0: return local
         url = f"https://cdn.luogu.com.cn/upload/usericon/{uid}.png"
         try:
             os.makedirs(AVATAR_DIR, exist_ok=True)
@@ -978,9 +978,26 @@ class BackendBridge(QObject):
 
     @Slot(str)
     def requestAvatar(self, uid):
+        """单人头像下载（点击对话时调用，强制刷新）"""
         def _do():
-            local = self.luogu.download_avatar(uid)
+            local = self.luogu.download_avatar(uid, force=True)
             if local: self.avatarReady.emit(uid, local.replace("\\", "/"))
+        self._pool.submit(_do)
+
+    @Slot(str)
+    def prefetchAvatars(self, uid_list_json):
+        """批量预取头像（列表加载后调用），逐个下载并推送缓存"""
+        try:
+            uid_list = json.loads(uid_list_json)
+        except:
+            return
+        if not uid_list:
+            return
+        def _do():
+            for uid in uid_list:
+                local = self.luogu.download_avatar(uid)
+                if local:
+                    self.avatarReady.emit(uid, local.replace("\\", "/"))
         self._pool.submit(_do)
 
     @Slot(str, result=str)
