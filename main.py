@@ -329,6 +329,7 @@ class LuoguAPI:
                                 "uid": ouid, "name": oname,
                                 "content": msg.get("content", ""),
                                 "time": msg.get("time", 0),
+                                "status": msg.get("status", 0),
                                 "avatar": s.get("avatar") or r_.get("avatar", ""),
                                 "color": (s if suid != self._uid else r_).get("color", ""),
                             }
@@ -336,6 +337,7 @@ class LuoguAPI:
                             seen[ouid]["content"] = msg.get("content", "")
                             seen[ouid]["time"] = msg.get("time", 0)
                             seen[ouid]["name"] = oname
+                            seen[ouid]["status"] = msg.get("status", 0)
                     result = list(seen.values())
                     cl_cache = os.path.join(CACHE_DIR, "_chat_list.json")
                     try:
@@ -615,6 +617,7 @@ class WSManager:
                 my_uid = cfg.get("luogu.user_id", "")
                 if s_uid and s_uid != my_uid:
                     _log("WS", f"<- {s_name}({s_uid}): {_mask(content, 40)}")
+                    _log("WS_DBG", f"RAW: {_mask(raw, 200)}")
                     if self.on_new_message:
                         self.on_new_message(s_uid, content, s_name, my_uid, m.get('time', int(time.time())))
         except Exception as e:

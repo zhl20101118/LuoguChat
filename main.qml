@@ -156,6 +156,11 @@ ApplicationWindow {
         if (!u) return
         curUid = u; curName = n || ("用户"+u); curColor = c || ""
         curAvatarSource = avatarCache[u] || ""
+        // 清除该用户的未读标记
+        for (var i = 0; i < chatList.length; i++) {
+            if (chatList[i]._u === u) { chatList[i].status = 0; break }
+        }
+        listVer += 1
         loadMsgs(u, -1); bridge.requestAvatar(u)
     }
     function sendMsg() {
@@ -206,6 +211,7 @@ ApplicationWindow {
         target: bridge
         function onWsStatus(s) { wsStat = s }
         function onNewMessage(m,c,sn,su,ts) {
+            console.log("WS_NEW:", sn, "(", su, ")", "->", c.substring(0, 40))
             if (su===curUid) { msgs.push({id:0,content:c,from_uid:su,"sender.name":sn,time:ts,is_me:false}); Qt.callLater(function(){msgList.positionViewAtEnd()}) }
             triggerListRefresh()
         }
@@ -399,6 +405,7 @@ ApplicationWindow {
                         spacing: 3
                         topMargin: 8; bottomMargin: 8
                         boundsBehavior: Flickable.StopAtBounds
+                        flickDeceleration: 5000
 
                     // 加载指示器
                     header: Rectangle {
@@ -434,6 +441,7 @@ ApplicationWindow {
                         }
                         property int tm: modelData.time || 0
                         property string ucolor: modelData.color || ""
+                        property int unread: modelData.status || 0
                         Behavior on color { ColorAnimation { duration: 160 } }
 
                         Row {
@@ -510,6 +518,20 @@ ApplicationWindow {
                             anchors.rightMargin: 14
                             anchors.top: parent.top
                             anchors.topMargin: 14
+                        }
+
+                        // 未读红点
+                        Rectangle {
+                            visible: unread > 0
+                            width: unread > 99 ? 26 : 20; height: 20; radius: 10
+                            color: red
+                            anchors.right: parent.right; anchors.rightMargin: 14
+                            anchors.top: dateText.bottom; anchors.topMargin: 6
+                            Text {
+                                anchors.centerIn: parent
+                                text: unread > 99 ? "99+" : String(unread)
+                                font.pixelSize: 11; color: "white"; font.bold: true
+                            }
                         }
 
                         MouseArea {
@@ -635,6 +657,7 @@ ApplicationWindow {
                             anchors.right: parent.right; anchors.rightMargin: 4; anchors.bottom: parent.bottom; clip:true
                             spacing: 8; topMargin: 14; bottomMargin: 14
                             model: msgs; boundsBehavior:Flickable.StopAtBounds; focus:true
+                            flickDeceleration: 5000
 
                             header: Rectangle {
                                 width: msgList.width - 14; height: hasMore && msgList.atYBeginning && msgs.length>0 ? 40 : 0
