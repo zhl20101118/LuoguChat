@@ -310,7 +310,7 @@ ApplicationWindow {
 
                     // 头像
                     Rectangle {
-                        width:44; height:44; radius:avatarRounded?10:22; anchors.horizontalCenter:parent.horizontalCenter
+                        width:44; height:44; radius:avatarVer>=0?(avatarRounded?10:22):22; anchors.horizontalCenter:parent.horizontalCenter
                         color: clt("#D8DDF0","#1E2850")
                         Image {
                             anchors.fill:parent; anchors.margins:2
@@ -507,7 +507,7 @@ ApplicationWindow {
 
                             // 头像
                             Rectangle {
-                                width: 46; height: 46; radius: avatarRounded ? 10 : 23; anchors.verticalCenter: parent.verticalCenter
+                                width: 46; height: 46; radius: avatarVer >= 0 ? (avatarRounded ? 10 : 23) : 23; anchors.verticalCenter: parent.verticalCenter
                                 color: clt("#E4E8F4","#152040"); clip: true
                                 Image {
                                     anchors.fill: parent; anchors.margins: 1
@@ -747,7 +747,7 @@ ApplicationWindow {
                                     id: rowIn
                                     visible: !im; anchors.left: parent.left; anchors.leftMargin: 4
                                     spacing: 8
-                                    Rectangle { width:34; height:34; radius:avatarRounded?8:17
+                                    Rectangle { width:34; height:34; radius:avatarVer>=0?(avatarRounded?8:17):17
                                         color:clt("#DCE0F0","#1A2848"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
                                             source: curAvatarSource || getAvatar(curUid)
@@ -801,7 +801,7 @@ ApplicationWindow {
                                             font.pixelSize:10; color:"#ffffff60"
                                         }
                                     }
-                                    Rectangle { width:34; height:34; radius:avatarRounded?8:17
+                                    Rectangle { width:34; height:34; radius:avatarVer>=0?(avatarRounded?8:17):17
                                         color:clt("#D8DDF0","#1E2850"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
                                             source: getAvatar(myUid)
@@ -1162,13 +1162,13 @@ ApplicationWindow {
                                 color: avatarRounded ? acc : clt("#EEF0F8","#121830")
                                 border.color: avatarRounded ? "transparent" : clt(bd1,bd2); border.width: avatarRounded ? 0 : 1
                                 Text { anchors.centerIn:parent; text:"圆角矩形"; font.pixelSize:13; color: avatarRounded ? "white" : clt(text2,text2) }
-                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: avatarRounded = true }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: { avatarRounded = true; avatarVer += 1 } }
                             }
                             Rectangle { width:80; height:36; radius:12
                                 color: !avatarRounded ? acc : clt("#EEF0F8","#121830")
                                 border.color: !avatarRounded ? "transparent" : clt(bd1,bd2); border.width: !avatarRounded ? 0 : 1
                                 Text { anchors.centerIn:parent; text:"正圆"; font.pixelSize:13; color: !avatarRounded ? "white" : clt(text2,text2) }
-                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: avatarRounded = false }
+                                MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: { avatarRounded = false; avatarVer += 1 } }
                             }
                         }
                     }
