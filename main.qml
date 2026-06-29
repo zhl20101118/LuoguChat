@@ -70,6 +70,8 @@ ApplicationWindow {
     property bool hasMore: false
     property bool msgLoading: false
     property bool listRefreshing: false
+    property var searchResults: []
+    property bool searching: false
     property bool showList: true
     property int nextLoadPage: -1
     property int serverRem: 50
@@ -207,6 +209,19 @@ ApplicationWindow {
     function cycTheme() { themeMode=(themeMode+1)%3; console.log("DEBUG cycTheme ->", themeMode, "dark=", themeMode===1); bridge.saveConfig(JSON.stringify({theme:{mode:themeMode,accent:acc}})) }
     function showProf(u,n) { profUid=u; profName=n }
     function triggerListRefresh() { listRefreshing = true; bridge.refreshChatList() }
+    function doSearch() {
+        var q = si.text.trim()
+        if (!q) { searchResults = []; refreshList(); return }
+        // 先过滤本地列表
+        refreshList()
+        // 然后服务端搜索
+        var kw = q.substring(0, 20)
+        try {
+            var raw = bridge.searchUsers(kw)
+            var arr = JSON.parse(raw)
+            searchResults = arr || []
+        } catch(e) { searchResults = [] }
+    }
     function showPopupNotify(title,body,uid,sender) {
         notifTitle=title; notifBody=body; notifSender=sender||""; notifUid=uid||""
         notifExpanded=false; notifAnim.restart(); notifPopup.open()
@@ -294,7 +309,7 @@ ApplicationWindow {
                             fillMode: Image.PreserveAspectCrop; asynchronous:true
                             onStatusChanged: if(status===Image.Error) source=""
                         }
-                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{if(myUid)showProf(myUid,myName)} }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{if(myUid){bridge.requestAvatar(myUid);showProf(myUid,myName)}} }
                     }
                     Item { height: 10; width: 1 }
                     // 列表折叠按钮
@@ -377,7 +392,7 @@ ApplicationWindow {
                                     font.pixelSize: 14; color: clt(text1,text1)
                                     selectByMouse: true
                                     clip: true
-                                    onTextChanged: refreshList()
+                                    onTextChanged: searchTimer.restart()
                                     MouseArea {
                                         anchors.fill: parent
                                         onPressed: function(mouse) { mouse.accepted = false }
@@ -412,15 +427,44 @@ ApplicationWindow {
                         boundsBehavior: Flickable.StopAtBounds
                         flickDeceleration: 5000
 
-                    // 加载指示器
-                    header: Rectangle {
-                        width: chatListView.width; height: loading ? 44 : 0; color: "transparent"; visible: loading
-                        Row { anchors.centerIn: parent; spacing: 10
-                            Rectangle { width: 16; height: 16; radius: 8; color: acc
-                                RotationAnimation on rotation { from:0; to:360; duration:800; loops:Animation.Infinite; running: loading } }
-                            Text { text:"加载中..."; font.pixelSize: 13; color: clt(text2,text2); anchors.verticalCenter: parent.verticalCenter }
+                    // header: 加载指示器 + 搜索结果
+                    header: Column {
+                        width: chatListView.width
+                        // 加载指示器
+                        Rectangle {
+                            width: parent.width; height: loading ? 44 : 0; color: "transparent"; visible: loading
+                            Row { anchors.centerIn: parent; spacing: 10
+                                Rectangle { width: 16; height: 16; radius: 8; color: acc
+                                    RotationAnimation on rotation { from:0; to:360; duration:800; loops:Animation.Infinite; running: loading } }
+                                Text { text:"加载中..."; font.pixelSize: 13; color: clt(text2,text2); anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            Behavior on height { NumberAnimation { duration: 200 } }
                         }
-                        Behavior on height { NumberAnimation { duration: 200 } }
+                        // 搜索结果
+                        Column {
+                            width: parent.width; visible: searchResults.length > 0
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1,bd2) }
+                            Rectangle { width: parent.width; height: 30; color: "transparent"
+                                Text { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 14
+                                    text: "搜索结果 (" + searchResults.length + ")"; font.pixelSize: 12; font.bold: true; color: acc } }
+                            Repeater {
+                                model: searchResults
+                                delegate: Rectangle {
+                                    width: parent.width; height: 46; radius: 8
+                                    color: searchHvr.containsMouse ? clt(hover,"#111D38") : clt("#F0F2FA","#0D1530")
+                                    Row { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 10
+                                        Rectangle { width: 32; height: 32; radius: avatarRounded?8:16; anchors.verticalCenter: parent.verticalCenter; color: clt("#E4E8F4","#152040"); clip: true
+                                            Image { anchors.fill: parent; anchors.margins: 1; source: getAvatar(modelData.uid); fillMode: Image.PreserveAspectCrop; asynchronous: true } }
+                                        Text { text: modelData.name || ("用户"+modelData.uid); font.pixelSize: 14; color: clt(text1,text1); anchors.verticalCenter: parent.verticalCenter
+                                            elide: Text.ElideRight; width: parent.width - 160 }
+                                        Text { text: "UID:" + (modelData.uid || ""); font.pixelSize: 11; color: clt(text3,text3); anchors.verticalCenter: parent.verticalCenter }
+                                    }
+                                    MouseArea { id: searchHvr; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                                        onClicked: { var uid = String(modelData.uid); var nm = modelData.name || ""; si.text = ""; searchResults = []; selUser(uid, nm) } }
+                                }
+                            }
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1,bd2) }
+                        }
                     }
 
                     model: chatList
@@ -462,7 +506,7 @@ ApplicationWindow {
                                     fillMode: Image.PreserveAspectCrop; asynchronous: true
                                     onStatusChanged: if(status===Image.Error) source=""
                                 }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: showProf(uid,name) }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { bridge.requestAvatar(uid); showProf(uid,name) } }
                                 Rectangle {
                                     visible: pinList.indexOf(uid) >= 0
                                     width: 16; height: 16; radius: 8
@@ -604,7 +648,8 @@ ApplicationWindow {
                                         source: curAvatarSource || getAvatar(curUid)
                                         fillMode:Image.PreserveAspectCrop; asynchronous:true }
                                     MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
-                                        onClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
+                                        onClicked: { if(curUid){ bridge.requestAvatar(curUid) } }
+                                        onDoubleClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
                                 }
                                 Column { anchors.verticalCenter:parent.verticalCenter; spacing:2
                                     Row { spacing:8
@@ -1551,4 +1596,5 @@ ApplicationWindow {
     }
     Timer { id: autoRefreshTimer; interval: 30000; repeat: true; onTriggered: { if(myUid) triggerListRefresh() } }
     Timer { id: sendRefreshTimer; interval: 800; repeat: false; onTriggered: { if(curUid) loadMsgs(curUid, -1) } }
+    Timer { id: searchTimer; interval: 300; repeat: false; onTriggered: doSearch() }
 }
