@@ -171,11 +171,12 @@ ApplicationWindow {
         var t = mi.text.trim()
         if (!t || !curUid) return
         bridge.sendMessage(curUid, t)
-        // 立即加入本地缓存显示
-        msgs.push({id:0,content:t,from_uid:myUid,sender:{},"sender.name":myName,time:Math.floor(Date.now()/1000),is_me:true})
+        // 乐观显示：立即加入带 _pending 标记的消息
+        var pendingMsg = {id:0,content:t,from_uid:myUid,sender:{},"sender.name":myName,time:Math.floor(Date.now()/1000),is_me:true,_pending:true}
+        msgs.push(pendingMsg)
         mi.text = ""
         Qt.callLater(function() { msgList.positionViewAtEnd() })
-        // 800ms 后从服务器刷新真实消息数据
+        // 800ms 后刷新，成功则替换为真实数据
         sendRefreshTimer.restart()
     }
     // 时间格式化 — 只显示 HH:MM
@@ -253,7 +254,15 @@ ApplicationWindow {
             else { msgs=newMsgs.concat(msgs); nextLoadPage=pg-1; hasMore=nextLoadPage>=1 }
         }
         function onMessagesLoading(b) { msgLoading=b }
-        function onReplySent(s,m) { toast(s?"已发送":"失败: "+(m||"")) }
+        function onReplySent(s,m) {
+            if (!s) {
+                // 发送失败：删除所有 _pending 消息
+                for (var i = msgs.length - 1; i >= 0; i--) { if (msgs[i]._pending) { msgs.splice(i, 1) } }
+                toast("发送失败: " + (m||""))
+            } else {
+                toast("已发送")
+            }
+        }
         function onAutoReplyDone(uid, content, reply) { toast("已自动回复 " + uid + ": " + reply.substring(0, 20) + "…") }
         function onShowErrorPopup(msg,rid) { showError(msg,function(){
             if(rid.indexOf("msg_")===0){var p=rid.substring(4).split("_");bridge.getMessages(p[0],parseInt(p[1])||1)}
@@ -725,59 +734,68 @@ ApplicationWindow {
                             delegate: Item {
                                 id:msgRow; width: msgList.width - 14
                                 anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
-                                height: bubble.height + 8
                                 property bool im: modelData.is_me || (modelData.sender&&String(modelData.sender.uid||"")===myUid) || String(modelData.from_uid||"")===myUid
                                 property string txt: (modelData.content || modelData.text || "")
                                 property string msgId: String(modelData.id || 0)
+                                property bool pending: modelData._pending || false
 
-                    // 对方头像
-                    Rectangle { visible:!im; opacity:im?0:1; width:34;height:34;radius:avatarRounded?8:17
-                        anchors.left:parent.left; anchors.leftMargin:6; y:parent.height-height-6
-                        color:clt("#DCE0F0","#1A2848"); clip:true
-                                    Image { anchors.centerIn:parent; width:28; height:28
-                                        source: curAvatarSource || getAvatar(curUid)
-                                        fillMode:Image.PreserveAspectCrop;asynchronous:true }
-                                }
+                                // 使用 Row 对齐
+                                Row {
+                                    anchors.left: parent.left; anchors.leftMargin: 4
+                                    anchors.right: parent.right; anchors.rightMargin: 4
+                                    height: childrenRect.height + 6
 
-                                // 气泡
-                                Rectangle {
-                                    id: bubble
-                                    property int bw: Math.min(Math.max(String(txt).length*14+52,60), parent.width-52)
-                                    width: bw; height: txtEdit.contentHeight + 40
-                                    x: im ? parent.width-width-8 : 40; y: 3; radius: 16
-                                    color: im ? acc : clt(cardBg2,"#111D35")
-                                    border.width: im?0:1; border.color: clt("#D0D6E8","#1E2E50")
+                                    Item { visible: !im; width: 40; height: 1 }
 
-                                    TextEdit {
-                                        id:txtEdit; anchors.left:parent.left; anchors.leftMargin:12
-                                        anchors.right:parent.right; anchors.rightMargin:12
-                                        anchors.top:parent.top; anchors.topMargin:6
-                                        height:contentHeight; readOnly:true; selectByMouse:true
-                                        text:msgRow.txt; font.pixelSize:15; color:im?"#FFFFFF":clt(text1,text1)
-                                        wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
+                                    // 对方头像 (底部对齐)
+                                    Rectangle { visible:!im; width:34;height:34;radius:avatarRounded?8:17
+                                        color:clt("#DCE0F0","#1A2848"); clip:true
+                                        Image { anchors.centerIn:parent; width:28; height:28
+                                            source: curAvatarSource || getAvatar(curUid)
+                                            fillMode:Image.PreserveAspectCrop;asynchronous:true }
                                     }
 
-                                    // 完整日期时间显示
-                                    Text {
-                                        anchors.right:parent.right; anchors.rightMargin:10
-                                        anchors.bottom:parent.bottom; anchors.bottomMargin:4
-                                        text: tFull(modelData.time||0)
-                                        font.pixelSize:10; color:im?"#ffffff60":clt(text3,text3)
-                                    }
+                                    Item { visible: !im; width: 6; height: 1 }
 
-                                    // 右键菜单 — MouseArea 只截获右键，左键穿透给 TextEdit
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        acceptedButtons: Qt.RightButton
-                                        onClicked: function(mouse) {
-                                            msgMenu._id = String(modelData.id || 0)
-                                            msgMenu._txt = msgRow.txt
-                                            var gpos = bubble.mapToItem(null, mouse.x, mouse.y)
-                                            msgMenu.x = gpos.x; msgMenu.y = gpos.y
-                                            msgMenu.open()
+                                    // 气泡
+                                    Rectangle {
+                                        id: bubble
+                                        property int bw: Math.min(Math.max(String(txt).length*14+52,60), msgList.width-80)
+                                        width: bw; height: Math.max(34, txtEdit.contentHeight + 36); radius: 16
+                                        color: pending ? Qt.lighter(acc, 1.3) : (im ? acc : clt(cardBg2,"#111D35"))
+                                        border.width: im?0:1; border.color: clt("#D0D6E8","#1E2E50")
+
+                                        TextEdit {
+                                            id:txtEdit; anchors.left:parent.left; anchors.leftMargin:12
+                                            anchors.right:parent.right; anchors.rightMargin:12
+                                            anchors.top:parent.top; anchors.topMargin:10
+                                            height:contentHeight; readOnly:true; selectByMouse:true
+                                            text:msgRow.txt; font.pixelSize:15; color:im?"#FFFFFF":clt(text1,text1)
+                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
+                                        }
+
+                                        Text {
+                                            anchors.right:parent.right; anchors.rightMargin:10
+                                            anchors.bottom:parent.bottom; anchors.bottomMargin:6
+                                            text: pending ? "发送中..." : tFull(modelData.time||0)
+                                            font.pixelSize:10; color:im?"#ffffff60":clt(text3,text3)
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                msgMenu._id = String(modelData.id || 0)
+                                                msgMenu._txt = msgRow.txt
+                                                var gpos = bubble.mapToItem(null, mouse.x, mouse.y)
+                                                msgMenu.x = gpos.x; msgMenu.y = gpos.y
+                                                msgMenu.open()
+                                            }
                                         }
                                     }
+
+                                    Item { Layout.fillWidth: true; visible: im; height: 1 }
                                 }
+                                height: childrenRect.height
                             }
 
                             // 空状态
