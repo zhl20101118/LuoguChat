@@ -68,6 +68,7 @@ ApplicationWindow {
     property int msgPage: -1
     property bool hasMore: false
     property bool msgLoading: false
+    property bool listRefreshing: false
     property bool showList: true
     property int nextLoadPage: -1
     property int serverRem: 50
@@ -195,6 +196,7 @@ ApplicationWindow {
     function us() { bridge.saveConfig(JSON.stringify({favorites:favList,pins:pinList})) }
     function cycTheme() { themeMode=(themeMode+1)%3; console.log("DEBUG cycTheme ->", themeMode, "dark=", themeMode===1); bridge.saveConfig(JSON.stringify({theme:{mode:themeMode,accent:acc}})) }
     function showProf(u,n) { profUid=u; profName=n }
+    function triggerListRefresh() { listRefreshing = true; bridge.refreshChatList() }
     function showPopupNotify(title,body,uid,sender) {
         notifTitle=title; notifBody=body; notifSender=sender||""; notifUid=uid||""
         notifExpanded=false; notifAnim.restart(); notifPopup.open()
@@ -205,7 +207,7 @@ ApplicationWindow {
         function onWsStatus(s) { wsStat = s }
         function onNewMessage(m,c,sn,su,ts) {
             if (su===curUid) { msgs.push({id:0,content:c,from_uid:su,"sender.name":sn,time:ts,is_me:false}); Qt.callLater(function(){msgList.positionViewAtEnd()}) }
-            bridge.refreshChatList()
+            triggerListRefresh()
         }
         function onImportantMessage(m,c,sn,su,tip,ts) {
             if (notifPopupEnabled) showPopupNotify("来自 " + sn, tip || c, m, sn)
@@ -214,7 +216,7 @@ ApplicationWindow {
                 else if (notifSoundFile) bridge.playSound(notifSoundFile)
             }
         }
-        function onChatListReady(j) { refreshListData(j) }
+        function onChatListReady(j) { refreshListData(j); listRefreshing = false }
         function onLoginTestResult(s,uid,name,e) {
             if (s) { myUid=uid; myName=name||("用户"+uid); toast("已登录: "+myName); refreshList() }
             else { toast("失败: "+(e||"登录失败")) }
@@ -229,7 +231,7 @@ ApplicationWindow {
         function onAutoReplyDone(uid, content, reply) { toast("已自动回复 " + uid + ": " + reply.substring(0, 20) + "…") }
         function onShowErrorPopup(msg,rid) { showError(msg,function(){
             if(rid.indexOf("msg_")===0){var p=rid.substring(4).split("_");bridge.getMessages(p[0],parseInt(p[1])||1)}
-            else if(rid==="refresh")bridge.refreshChatList()
+            else if(rid==="refresh")triggerListRefresh()
             else if(rid.indexOf("send_")===0)bridge.sendMessage(rid.substring(5),mi.text)
         })}
         function onConfigChanged() { reloadCfg() }
@@ -380,7 +382,7 @@ ApplicationWindow {
                             border.color: clt(bd1,bd2); border.width: 1.5
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn:parent; text:"↻"; font.pixelSize: 19; color: clt(text2,text2) }
-                            MouseArea { id: refreshHover; anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked: bridge.refreshChatList() }
+                            MouseArea { id: refreshHover; anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked: triggerListRefresh() }
                         }
                     }
                 }
@@ -592,6 +594,12 @@ ApplicationWindow {
                         Row {
                             id: winCtrls; anchors.right:parent.right; anchors.rightMargin:16
                             anchors.verticalCenter:parent.verticalCenter; spacing:10
+                            // 列表刷新指示器（右上角）
+                            Row { visible: listRefreshing; spacing: 6; anchors.verticalCenter: parent.verticalCenter
+                                Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; color: orange
+                                    RotationAnimation on rotation{from:0;to:360;duration:800;loops:Animation.Infinite;running:listRefreshing} }
+                                Text { text: "刷新中"; font.pixelSize: 12; color: orange; anchors.verticalCenter: parent.verticalCenter }
+                            }
                             // 加载指示器（右上角）
                             Row { visible: msgLoading; spacing: 6; anchors.verticalCenter: parent.verticalCenter
                                 Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; color: acc
@@ -1490,8 +1498,8 @@ ApplicationWindow {
 
     Component.onCompleted: {
         reloadCfg(); refreshList(); bridge.startWS(); autoRefreshTimer.start()
-        Qt.callLater(function(){ bridge.refreshChatList() })
+        Qt.callLater(function(){ triggerListRefresh() })
         try{ var s = JSON.parse(bridge.getServerStatus()); serverRem = s.remaining || 0; serverTotal = s.total || 0 } catch(e) {}
     }
-    Timer { id: autoRefreshTimer; interval: 30000; repeat: true; onTriggered: { if(myUid) bridge.refreshChatList() } }
+    Timer { id: autoRefreshTimer; interval: 30000; repeat: true; onTriggered: { if(myUid) triggerListRefresh() } }
 }
