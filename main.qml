@@ -251,7 +251,15 @@ ApplicationWindow {
         function onMessagesReady(j,pg,more) {
             var d=JSON.parse(j); var newMsgs=d.messages||[]; var tp=d.totalPages||1
             if (pg<0) { msgs=newMsgs; nextLoadPage=tp-1; hasMore=tp>1&&nextLoadPage>=1; Qt.callLater(function(){msgList.positionViewAtEnd()}) }
-            else { msgs=newMsgs.concat(msgs); nextLoadPage=pg-1; hasMore=nextLoadPage>=1 }
+            else {
+                var oldCount = msgs.length
+                var oldCY = msgList.contentY
+                var oldOH = msgList.contentHeight
+                msgs = newMsgs.concat(msgs)
+                nextLoadPage=pg-1; hasMore=nextLoadPage>=1
+                // 保持滚动位置不变
+                msgList.contentY = msgList.contentHeight - oldOH + oldCY
+            }
         }
         function onMessagesLoading(b) { msgLoading=b }
         function onReplySent(s,m) {
@@ -715,7 +723,7 @@ ApplicationWindow {
                             anchors.right: parent.right; anchors.rightMargin: 4; anchors.bottom: parent.bottom; clip:true
                             spacing: 8; topMargin: 14; bottomMargin: 14
                             model: msgs; boundsBehavior:Flickable.StopAtBounds; focus:true
-                            flickDeceleration: 5000
+                            flickDeceleration: 5000; cacheBuffer: 600
 
                             header: Rectangle {
                                 width: msgList.width - 14; height: hasMore && msgList.atYBeginning && msgs.length>0 ? 40 : 0
@@ -737,16 +745,12 @@ ApplicationWindow {
                                 property string txt: (modelData.content || modelData.text || "")
                                 property string msgId: String(modelData.id || 0)
                                 property bool pending: modelData._pending || false
-
-                                // 黄金分割线: 左至右61.8%
                                 property int maxBubbleWidth: Math.floor((parent ? parent.width : 400) * 0.618)
-                                height: im ? rowMe.height + 4 : rowIn.height + 4
+                                height: Math.max(im ? rowMe.height : rowIn.height, 1) + 4
 
-                                // 别人消息 — 左侧头像 + 气泡偏左
+                                // 别人消息
                                 Row {
-                                    id: rowIn
-                                    visible: !im; anchors.left: parent.left; anchors.leftMargin: 4
-                                    spacing: 8
+                                    id: rowIn; visible: !im; anchors.left: parent.left; anchors.leftMargin: 4; spacing: 8
                                     Rectangle { width:34; height:34; radius:avatarVer>=0?(avatarRounded?8:17):17
                                         color:clt("#DCE0F0","#1A2848"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
@@ -756,50 +760,40 @@ ApplicationWindow {
                                             onClicked: { if(curUid) bridge.requestAvatar(curUid) } }
                                     }
                                     Rectangle {
-                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                        width: bw; height: contentHeight + 36; radius: 16
+                                        width: Math.min(Math.max(msgRow.txt.length*14+50,56), msgRow.maxBubbleWidth)
+                                        height: inTxt.contentHeight + 36; radius: 16
                                         color: clt(cardBg2,"#111D35"); border.color: clt("#D0D6E8","#1E2E50"); border.width: 1
-                                        property int contentHeight: txtEditIn.contentHeight
-                                        TextEdit {
-                                            id:txtEditIn; anchors.left:parent.left; anchors.leftMargin:12
+                                        Text { id:inTxt; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true; selectByMouse:true
                                             text:msgRow.txt; font.pixelSize:15; color:clt(text1,text1)
-                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
-                                        }
-                                        Text {
-                                            anchors.right:parent.right; anchors.rightMargin:10
+                                            wrapMode:Text.WordWrap; width: parent.width - 24 }
+                                        Text { anchors.right:parent.right; anchors.rightMargin:10
                                             anchors.bottom:parent.bottom; anchors.bottomMargin:6
-                                            text: tFull(modelData.time||0)
-                                            font.pixelSize:10; color:clt(text3,text3)
-                                        }
+                                            text: tFull(modelData.time||0); font.pixelSize:10; color:clt(text3,text3) }
+                                        MouseArea { anchors.fill:parent; acceptedButtons: Qt.RightButton
+                                            onClicked: { msgMenu._id=msgRow.msgId; msgMenu._txt=msgRow.txt; msgMenu.open() } }
                                     }
                                 }
 
-                                // 自己消息 — 气泡 + 右侧头像
+                                // 自己消息
                                 Row {
-                                    id: rowMe
-                                    visible: im; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
+                                    id: rowMe; visible: im; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
                                     Rectangle {
-                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                        width: bw; height: contentHeight + 36; radius: 16
+                                        width: Math.min(Math.max(msgRow.txt.length*14+50,56), msgRow.maxBubbleWidth)
+                                        height: meTxt.contentHeight + 36; radius: 16
                                         color: pending ? Qt.lighter(acc, 1.3) : acc
-                                        property int contentHeight: txtEditMe.contentHeight
-                                        TextEdit {
-                                            id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
+                                        Text { id:meTxt; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true; selectByMouse:true
                                             text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
-                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
-                                        }
-                                        Text {
-                                            anchors.right:parent.right; anchors.rightMargin:10
+                                            wrapMode:Text.WordWrap; width: parent.width - 24 }
+                                        Text { anchors.right:parent.right; anchors.rightMargin:10
                                             anchors.bottom:parent.bottom; anchors.bottomMargin:6
                                             text: pending ? "发送中..." : tFull(modelData.time||0)
-                                            font.pixelSize:10; color:"#ffffff60"
-                                        }
+                                            font.pixelSize:10; color:"#ffffff60" }
+                                        MouseArea { anchors.fill:parent; acceptedButtons: Qt.RightButton
+                                            onClicked: { msgMenu._id=msgRow.msgId; msgMenu._txt=msgRow.txt; msgMenu.open() } }
                                     }
                                     Rectangle { width:34; height:34; radius:avatarVer>=0?(avatarRounded?8:17):17
                                         color:clt("#D8DDF0","#1E2850"); clip:true
@@ -808,21 +802,6 @@ ApplicationWindow {
                                             fillMode:Image.PreserveAspectCrop;asynchronous:true }
                                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
                                             onClicked: { if(myUid) bridge.requestAvatar(myUid) } }
-                                    }
-                                }
-
-                                // 右键菜单 — 放在 delegate 最上层 (最后渲染)
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    propagateComposedEvents: true
-                                    onClicked: function(mouse) {
-                                        if (mouse.button === Qt.RightButton) {
-                                            msgMenu._id = msgRow.msgId
-                                            msgMenu._txt = msgRow.txt
-                                            msgMenu.x = mouse.x + 10; msgMenu.y = mouse.y + 10
-                                            msgMenu.open()
-                                        }
                                     }
                                 }
                             }
