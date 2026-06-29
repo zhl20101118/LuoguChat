@@ -746,7 +746,7 @@ ApplicationWindow {
                                 // 别人消息 — 左侧头像 + 气泡偏左
                                 Row {
                                     visible: !im; anchors.left: parent.left; anchors.leftMargin: 4
-                                    width: parent.width - 8
+                                    spacing: 8
                                     Rectangle { width:34; height:34; radius:avatarRounded?8:17
                                         color:clt("#DCE0F0","#1A2848"); clip:true
                                         Image { anchors.centerIn:parent; width:28; height:28
@@ -755,7 +755,6 @@ ApplicationWindow {
                                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
                                             onClicked: { if(curUid) bridge.requestAvatar(curUid) } }
                                     }
-                                    Item { width: 8; height: 1 }
                                     Rectangle {
                                         property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
                                         width: bw; height: Math.max(34, txtEditIn.contentHeight + 36); radius: 16
@@ -774,49 +773,58 @@ ApplicationWindow {
                                             text: tFull(modelData.time||0)
                                             font.pixelSize:10; color:clt(text3,text3)
                                         }
-                                        MouseArea {
-                                            anchors.fill: parent; acceptedButtons: Qt.RightButton
-                                            onClicked: function(mouse) {
-                                                msgMenu._id = String(modelData.id || 0)
-                                                msgMenu._txt = msgRow.txt
-                                                var gpos = this.mapToItem(null, mouse.x, mouse.y)
-                                                msgMenu.x = gpos.x; msgMenu.y = gpos.y
-                                                msgMenu.open()
+                                        // 右键透明遮罩（必须在 TextEdit 之后，覆盖在上面）
+                                        Rectangle { anchors.fill: parent; color: "transparent"
+                                            MouseArea { anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                                onClicked: function(mouse) {
+                                                    msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
+                                                    var gp = mapToItem(null, mouse.x, mouse.y); msgMenu.x = gp.x; msgMenu.y = gp.y
+                                                    msgMenu.open()
+                                                }
                                             }
                                         }
                                     }
                                 }
 
-                                // 自己消息 — 气泡偏右
-                                Rectangle {
-                                    visible: im; anchors.right: parent.right; anchors.rightMargin: 4
-                                    anchors.left: undefined
-                                    property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
-                                    width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
-                                    color: pending ? Qt.lighter(acc, 1.3) : acc
-                                    TextEdit {
-                                        id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
-                                        anchors.right:parent.right; anchors.rightMargin:12
-                                        anchors.top:parent.top; anchors.topMargin:10
-                                        height:contentHeight; readOnly:true; selectByMouse:true
-                                        text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
-                                        wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
-                                    }
-                                    Text {
-                                        anchors.right:parent.right; anchors.rightMargin:10
-                                        anchors.bottom:parent.bottom; anchors.bottomMargin:6
-                                        text: pending ? "发送中..." : tFull(modelData.time||0)
-                                        font.pixelSize:10; color:"#ffffff60"
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent; acceptedButtons: Qt.RightButton
-                                        onClicked: function(mouse) {
-                                            msgMenu._id = String(modelData.id || 0)
-                                            msgMenu._txt = msgRow.txt
-                                            var gpos = this.mapToItem(null, mouse.x, mouse.y)
-                                            msgMenu.x = gpos.x; msgMenu.y = gpos.y
-                                            msgMenu.open()
+                                // 自己消息 — 气泡 + 右侧头像
+                                Row {
+                                    visible: im; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
+                                    Rectangle {
+                                        property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
+                                        width: bw; height: Math.max(34, txtEditMe.contentHeight + 36); radius: 16
+                                        color: pending ? Qt.lighter(acc, 1.3) : acc
+                                        TextEdit {
+                                            id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
+                                            anchors.right:parent.right; anchors.rightMargin:12
+                                            anchors.top:parent.top; anchors.topMargin:10
+                                            height:contentHeight; readOnly:true; selectByMouse:true
+                                            text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
+                                            wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
+                                        Text {
+                                            anchors.right:parent.right; anchors.rightMargin:10
+                                            anchors.bottom:parent.bottom; anchors.bottomMargin:6
+                                            text: pending ? "发送中..." : tFull(modelData.time||0)
+                                            font.pixelSize:10; color:"#ffffff60"
+                                        }
+                                        Rectangle { anchors.fill: parent; color: "transparent"
+                                            MouseArea { anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                                onClicked: function(mouse) {
+                                                    msgMenu._id = String(modelData.id || 0); msgMenu._txt = msgRow.txt
+                                                    var gp = mapToItem(null, mouse.x, mouse.y); msgMenu.x = gp.x; msgMenu.y = gp.y
+                                                    msgMenu.open()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // 自己头像
+                                    Rectangle { width:34; height:34; radius:avatarRounded?8:17
+                                        color:clt("#D8DDF0","#1E2850"); clip:true
+                                        Image { anchors.centerIn:parent; width:28; height:28
+                                            source: getAvatar(myUid)
+                                            fillMode:Image.PreserveAspectCrop;asynchronous:true }
+                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
+                                            onClicked: { if(myUid) bridge.requestAvatar(myUid) } }
                                     }
                                 }
                             }
