@@ -441,7 +441,7 @@ ApplicationWindow {
                         }
                         property int tm: modelData.time || 0
                         property string ucolor: modelData.color || ""
-                        property int unread: modelData.status === 1 ? 1 : 0
+                        property int unread: (modelData.status === 1) ? 1 : 0
                         Behavior on color { ColorAnimation { duration: 160 } }
 
                         Row {
@@ -520,13 +520,18 @@ ApplicationWindow {
                             anchors.topMargin: 14
                         }
 
-                        // 未读气泡
+                        // 未读气泡（条数）
                         Rectangle {
                             visible: unread > 0
-                            width: 10; height: 10; radius: 5
+                            width: unread > 99 ? 28 : (unread > 9 ? 22 : 18); height: 18; radius: 9
                             color: red
                             anchors.right: parent.right; anchors.rightMargin: 14
-                            anchors.top: parent.top; anchors.topMargin: 14
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                anchors.centerIn: parent
+                                text: unread > 99 ? "99+" : String(unread)
+                                font.pixelSize: 10; color: "white"; font.bold: true
+                            }
                         }
 
                         MouseArea {
