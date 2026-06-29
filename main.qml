@@ -169,9 +169,12 @@ ApplicationWindow {
         var t = mi.text.trim()
         if (!t || !curUid) return
         bridge.sendMessage(curUid, t)
+        // 立即加入本地缓存显示
         msgs.push({id:0,content:t,from_uid:myUid,sender:{},"sender.name":myName,time:Math.floor(Date.now()/1000),is_me:true})
         mi.text = ""
         Qt.callLater(function() { msgList.positionViewAtEnd() })
+        // 800ms 后从服务器刷新真实消息数据
+        sendRefreshTimer.restart()
     }
     // 时间格式化 — 只显示 HH:MM
     function tf(ts) {
@@ -1547,4 +1550,5 @@ ApplicationWindow {
         try{ var s = JSON.parse(bridge.getServerStatus()); serverRem = s.remaining || 0; serverTotal = s.total || 0 } catch(e) {}
     }
     Timer { id: autoRefreshTimer; interval: 30000; repeat: true; onTriggered: { if(myUid) triggerListRefresh() } }
+    Timer { id: sendRefreshTimer; interval: 800; repeat: false; onTriggered: { if(curUid) loadMsgs(curUid, -1) } }
 }
