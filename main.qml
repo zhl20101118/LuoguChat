@@ -741,7 +741,7 @@ ApplicationWindow {
                                 height: childrenRect.height + 6
 
                                 // 黄金分割线: 左至右61.8%
-                                property int maxBubbleWidth: Math.floor(parent.width * 0.618)
+                                property int maxBubbleWidth: Math.floor((parent ? parent.width : 400) * 0.618)
 
                                 // 别人消息 — 左侧头像 + 气泡偏左
                                 Row {
