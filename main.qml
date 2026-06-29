@@ -13,8 +13,10 @@ ApplicationWindow {
 
     property int themeMode: 2
     property string acc: "#6366F1"
+    property var avatarCache: ({})
+    property string curAvatarSource: ""
     property bool dark: themeMode === 1
-    function clt(light, dk) { return dark ? dk : light }
+    function clt(light, dk) { return themeMode === 1 ? dk : light }
 
     readonly property color bg1: clt("#EEF2FF","#080C1A")
     readonly property color bg2: clt("#F5F7FF","#0B1020")
@@ -84,7 +86,7 @@ ApplicationWindow {
     function reloadCfg() {
         var c = JSON.parse(bridge.getConfig())
         myUid = c.luogu ? (c.luogu.user_id || "") : ""
-        themeMode = c.theme ? (c.theme.mode || 2) : 2
+        themeMode = c.theme ? (c.theme.mode !== undefined ? c.theme.mode : 2) : 2
         acc = c.theme ? (c.theme.accent || "#6366F1") : "#6366F1"
         favList = c.favorites || []
         pinList = c.pins || []
@@ -148,6 +150,7 @@ ApplicationWindow {
     function selUser(u, n, c) {
         if (!u) return
         curUid = u; curName = n || ("用户"+u); curColor = c || ""
+        curAvatarSource = avatarCache[u] || ""
         loadMsgs(u, -1); bridge.requestAvatar(u)
     }
     function sendMsg() {
@@ -158,23 +161,35 @@ ApplicationWindow {
         mi.text = ""
         Qt.callLater(function() { msgList.positionViewAtEnd() })
     }
+    // 时间格式化 — 只显示 HH:MM
     function tf(ts) {
         if (!ts) return ""
         var d = new Date(ts*1000)
         return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)
     }
+    // 日期格式化 — 完整显示
     function td(ts) {
         if (!ts) return ""
         var d = new Date(ts*1000); var n = new Date()
-        if (d.toDateString()===n.toDateString()) return ""
+        if (d.toDateString()===n.toDateString()) return "今天"
         var y = new Date(n); y.setDate(y.getDate()-1)
         if (d.toDateString()===y.toDateString()) return "昨天"
         return (d.getMonth()+1)+"/"+d.getDate()
     }
+    // 完整日期时间 — 用于消息气泡
+    function tFull(ts) {
+        if (!ts) return ""
+        var d = new Date(ts*1000); var n = new Date()
+        var time = ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)
+        if (d.toDateString()===n.toDateString()) return time
+        var y = new Date(n); y.setDate(y.getDate()-1)
+        if (d.toDateString()===y.toDateString()) return "昨天 " + time
+        return (d.getMonth()+1)+"/"+d.getDate()+" "+time
+    }
     function tFav(uid) { var i=favList.indexOf(uid); if(i>=0)favList.splice(i,1);else favList.push(uid);us() }
     function tPin(uid) { var i=pinList.indexOf(uid); if(i>=0)pinList.splice(i,1);else pinList.push(uid);us() }
     function us() { bridge.saveConfig(JSON.stringify({favorites:favList,pins:pinList})) }
-    function cycTheme() { themeMode=(themeMode+1)%3; bridge.saveConfig(JSON.stringify({theme:{mode:themeMode,accent:acc}})) }
+    function cycTheme() { themeMode=(themeMode+1)%3; console.log("DEBUG cycTheme ->", themeMode, "dark=", themeMode===1); bridge.saveConfig(JSON.stringify({theme:{mode:themeMode,accent:acc}})) }
     function showProf(u,n) { profUid=u; profName=n }
     function showPopupNotify(title,body,uid,sender) {
         notifTitle=title; notifBody=body; notifSender=sender||""; notifUid=uid||""
@@ -207,6 +222,7 @@ ApplicationWindow {
         }
         function onMessagesLoading(b) { msgLoading=b }
         function onReplySent(s,m) { toast(s?"已发送":"失败: "+(m||"")) }
+        function onAutoReplyDone(uid, content, reply) { toast("已自动回复 " + uid + ": " + reply.substring(0, 20) + "…") }
         function onShowErrorPopup(msg,rid) { showError(msg,function(){
             if(rid.indexOf("msg_")===0){var p=rid.substring(4).split("_");bridge.getMessages(p[0],parseInt(p[1])||1)}
             else if(rid==="refresh")bridge.refreshChatList()
@@ -214,17 +230,23 @@ ApplicationWindow {
         })}
         function onConfigChanged() { reloadCfg() }
         function onServerSyncResult(j) { var s=JSON.parse(j); serverRem=s.remaining||0; serverTotal=s.total||0 }
-        function onAvatarReady(uid,path) {}
+        function onAvatarReady(uid, path) {
+            var fileUrl = "file:///" + path
+            avatarCache[uid] = fileUrl
+            if (uid === curUid) curAvatarSource = fileUrl
+        }
+    }
+
+    function getAvatar(uid) {
+        if (!uid) return ""
+        if (avatarCache[uid]) return avatarCache[uid]
+        return "https://cdn.luogu.com.cn/upload/usericon/" + uid + ".png"
     }
 
     Rectangle {
-        anchors.fill: parent; anchors.margins: 1; radius: 14; clip: true
-        gradient: Gradient {
-            GradientStop { position:0; color:clt("#E8EEF8","#060A16") }
-            GradientStop { position:0.35; color:clt("#EEF2FD","#080D1A") }
-            GradientStop { position:0.65; color:clt("#F0F4FF","#070C18") }
-            GradientStop { position:1; color:clt("#E4EAF6","#050914") }
-        }
+        id: bgRect
+        anchors.fill: parent; anchors.margins: 2; radius: 18; clip: true
+        color: clt("#EEF2FF","#080C1A")
         Rectangle {
             anchors.top:parent.top; anchors.left:parent.left; anchors.right:parent.right
             height:1; color:clt(Qt.rgba(1,1,1,0.25),Qt.rgba(1,1,1,0.04))
@@ -236,22 +258,28 @@ ApplicationWindow {
             Rectangle {
                 Layout.preferredWidth: 60; Layout.fillHeight: true
                 color: clt(sideBg,"#040810")
+                radius: 18; clip: true
+
+                // 上方内容
                 Column {
-                    anchors.fill:parent; topPadding: 14; bottomPadding: 12; spacing: 6
+                    anchors.top: parent.top; anchors.topMargin: 14
+                    anchors.left: parent.left; anchors.right: parent.right
+                    spacing: 6
+
                     // 头像
                     Rectangle {
                         width:44; height:44; radius:22; anchors.horizontalCenter:parent.horizontalCenter
                         color: clt("#D8DDF0","#1E2850")
                         Image {
                             anchors.fill:parent; anchors.margins:2
-                            source: myUid ? "https://cdn.luogu.com.cn/upload/usericon/" + myUid + ".png" : ""
+                            source: getAvatar(myUid)
                             fillMode: Image.PreserveAspectCrop; asynchronous:true
                             onStatusChanged: if(status===Image.Error) source=""
                         }
                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked:{if(myUid)showProf(myUid,myName)} }
                     }
                     Item { height: 10; width: 1 }
-                    // 列表折叠按钮 — 精致悬浮按钮
+                    // 列表折叠按钮
                     Rectangle {
                         id: collapseBtn; width: 30; height: 30; radius: 15
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -259,10 +287,9 @@ ApplicationWindow {
                         scale: collapseHover.containsMouse ? 1.1 : 1.0
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on scale { NumberAnimation { duration: 150 } }
-                        Text { anchors.centerIn: parent; text: "≡"; font.pixelSize: 14; color: "white"; font.bold: true }
+                        Text { anchors.centerIn: parent; text: showList ? "≡" : "▷"; font.pixelSize: 14; color: "white"; font.bold: true }
                         MouseArea { id: collapseHover; anchors.fill:parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true; onClicked: showList = !showList }
                     }
-                    Item { Layout.fillHeight:true; width:1 }
                     // 主题
                     Rectangle {
                         width:40; height:40; radius:12; anchors.horizontalCenter:parent.horizontalCenter
@@ -270,6 +297,14 @@ ApplicationWindow {
                         Text { anchors.centerIn:parent; text: themeMode===0?"☀":(themeMode===1?"☾":"◐"); font.pixelSize:20; color:clt(text2,text3) }
                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked:cycTheme() }
                     }
+                }
+
+                // 底部按钮
+                Column {
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 12
+                    anchors.left: parent.left; anchors.right: parent.right
+                    spacing: 4
+
                     // 设置
                     Rectangle {
                         width:40; height:40; radius:12; anchors.horizontalCenter:parent.horizontalCenter
@@ -277,10 +312,18 @@ ApplicationWindow {
                         Text { anchors.centerIn:parent; text:"⚙"; font.pixelSize:22; color:clt(text2,text3) }
                         MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked:{reloadCfg();stg.open()} }
                     }
+                    // AI 设置
+                    Rectangle {
+                        id: aiSideBtn
+                        width:40; height:40; radius:12; anchors.horizontalCenter:parent.horizontalCenter
+                        color: "transparent"
+                        Text { anchors.centerIn:parent; text:"⌬"; font.pixelSize:22; color:clt(text2,text3) }
+                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked:{reloadCfg();stgAI.open()} }
+                    }
                 }
             }
 
-            Rectangle { Layout.preferredWidth:1; Layout.fillHeight:true; color:clt(bd1,bd2) }
+            Rectangle { Layout.preferredWidth:4; Layout.fillHeight:true; color:clt(bd1,bd2) }
 
             // ═══ MIDDLE PANEL (可折叠) ═══
             Rectangle {
@@ -288,175 +331,225 @@ ApplicationWindow {
                 Layout.preferredWidth: showList ? 310 : 0; Layout.fillHeight: true
                 clip: true
                 color: clt(cardBg,"#0A1020")
-                visible: showList
+                radius: 16; visible: showList
                 Behavior on Layout.preferredWidth { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
+                // 搜索栏
                 Rectangle {
                     id: searchBar
                     anchors.top:parent.top; anchors.left:parent.left; anchors.right:parent.right
-                    height: 62; color:"transparent"
-                    Row { anchors.centerIn:parent; spacing: 8
+                    height: 56; color:"transparent"
+
+                    Row {
+                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
+
+                        // 搜索输入框
                         Rectangle {
-                            width: 210; height: 38; radius: 19
-                            color: clt("#EEF0F8","#121830"); border.color: clt(bd1,bd2); border.width: 1
-                            Row { anchors.fill:parent; leftPadding: 16; spacing: 8
-                                Text { text:"⌕"; font.pixelSize: 18; anchors.verticalCenter: parent.verticalCenter; color: clt(text3,text3) }
+                            width: parent.width - 46; height: 38; radius: 19
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: clt("#ECEEF6","#0F1830"); border.color: clt(bd1,bd2); border.width: 1.5
+
+                            Row {
+                                anchors.fill: parent; anchors.leftMargin: 14; spacing: 8
+                                Text { text: "⌕"; font.pixelSize: 17; anchors.verticalCenter: parent.verticalCenter; color: clt(text3,text3) }
                                 TextInput {
-                                    id: si; anchors.verticalCenter: parent.verticalCenter; width: 155
-                                    font.pixelSize: 15; color: clt(text1,text1)
+                                    id: si
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 32
+                                    font.pixelSize: 14; color: clt(text1,text1)
+                                    selectByMouse: true
+                                    clip: true
                                     onTextChanged: refreshList()
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onPressed: function(mouse) { mouse.accepted = false }
+                                    }
                                 }
                             }
                         }
+
+                        // 刷新按钮
                         Rectangle {
-                            width: 38; height: 38; radius: 19
-                            color: clt("#EEF0F8","#121830"); border.color: clt(bd1,bd2); border.width: 1
-                            Text { anchors.centerIn:parent; text:"↻"; font.pixelSize: 20; color: clt(text2,text2) }
-                            MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: bridge.refreshChatList() }
+                            width: 38; height: 38; radius: 19; anchors.verticalCenter: parent.verticalCenter
+                            color: refreshHover.containsMouse ? clt("#DCE2F2","#1A2850") : clt("#ECEEF6","#0F1830")
+                            border.color: clt(bd1,bd2); border.width: 1.5
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text { anchors.centerIn:parent; text:"↻"; font.pixelSize: 19; color: clt(text2,text2) }
+                            MouseArea { id: refreshHover; anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true; onClicked: bridge.refreshChatList() }
                         }
                     }
                 }
                 Rectangle { anchors.top:searchBar.bottom; anchors.left:parent.left; anchors.right:parent.right; height:1; color:clt(bd1,bd2) }
 
-                ScrollView {
-                    anchors.top: parent.top; anchors.topMargin: 63
-                    anchors.bottom: parent.bottom; anchors.left: parent.left
-                    anchors.right: parent.right; anchors.rightMargin: 3
-                    clip: true
-                    ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded; width:4; contentItem:Rectangle{radius:2; color:clt("#C0C4D8","#3A4260"); opacity:0.35}}
-                    Column {
-                        id: midCol; width: parent.width; spacing: 0
-                        // 加载指示器
-                        Rectangle {
-                            visible: loading
-                            width: 140; height: 56; radius: 28; anchors.horizontalCenter: parent.horizontalCenter
-                            color: clt(Qt.rgba(0.94,0.95,0.98,0.95),Qt.rgba(0.06,0.1,0.2,0.95))
-                            Row { anchors.centerIn:parent; spacing: 10
-                                Rectangle { width: 20; height: 20; radius: 10; anchors.verticalCenter:parent.verticalCenter; color:acc
-                                    RotationAnimation on rotation{from:0;to:360;duration:800;loops:Animation.Infinite;running:loading} }
-                                Text { text:"加载中..."; font.pixelSize: 15; color: clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
-                            }
+                // 列表 — 用 ListView 替代 ScrollView+Column
+                    ListView {
+                        id: chatListView
+                        anchors.top: searchBar.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        clip: true
+                        spacing: 3
+                        topMargin: 8; bottomMargin: 8
+                        boundsBehavior: Flickable.StopAtBounds
+
+                    // 加载指示器
+                    header: Rectangle {
+                        width: chatListView.width; height: loading ? 44 : 0; color: "transparent"; visible: loading
+                        Row { anchors.centerIn: parent; spacing: 10
+                            Rectangle { width: 16; height: 16; radius: 8; color: acc
+                                RotationAnimation on rotation { from:0; to:360; duration:800; loops:Animation.Infinite; running: loading } }
+                            Text { text:"加载中..."; font.pixelSize: 13; color: clt(text2,text2); anchors.verticalCenter: parent.verticalCenter }
                         }
-                        Repeater {
-                            model: chatList
-                            delegate: Rectangle {
-                                width: parent.width; height: 74
-                                color: {
-                                    var u = String(modelData.uid || (modelData.user ? modelData.user.uid : ""))
-                                    return curUid === u ? clt(select,"#162050") : (hvr.containsMouse ? clt(hover,"#111D38") : "transparent")
+                        Behavior on height { NumberAnimation { duration: 200 } }
+                    }
+
+                    model: chatList
+                    delegate: Rectangle {
+                        width: chatListView.width; height: 72
+                        radius: 10
+                        color: {
+                            var u = String(modelData.uid || (modelData.user ? modelData.user.uid : ""))
+                            return curUid === u ? clt(select,"#162050") : (hvr.containsMouse ? clt(hover,"#111D38") : "transparent")
+                        }
+                        Rectangle {
+                            visible: curUid === String(modelData.uid || "")
+                            anchors.left:parent.left; anchors.top:parent.top; anchors.bottom:parent.bottom
+                            anchors.leftMargin: 4
+                            width: 4; color: acc; radius: 2
+                        }
+                        property string uid: String(modelData.uid || "")
+                        property string name: modelData.name || (modelData.user ? modelData.user.name : "") || ("用户" + uid)
+                        property string last: {
+                            var raw = modelData.content || ""
+                            // 过滤换行、特殊字符，只保留可见文字
+                            return raw.replace(/\n/g, " ").replace(/\r/g, "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
+                        }
+                        property int tm: modelData.time || 0
+                        property string ucolor: modelData.color || ""
+                        Behavior on color { ColorAnimation { duration: 160 } }
+
+                        Row {
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
+
+                            // 头像
+                            Rectangle {
+                                width: 46; height: 46; radius: 23; anchors.verticalCenter: parent.verticalCenter
+                                color: clt("#E4E8F4","#152040"); clip: true
+                                Image {
+                                    anchors.fill: parent; anchors.margins: 1
+                                    source: getAvatar(uid)
+                                    fillMode: Image.PreserveAspectCrop; asynchronous: true
+                                    onStatusChanged: if(status===Image.Error) source=""
+                                }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: showProf(uid,name) }
+                                Rectangle {
+                                    visible: pinList.indexOf(uid) >= 0
+                                    width: 16; height: 16; radius: 8
+                                    x: parent.width - 12; y: parent.height - 12
+                                    color: orange
+                                    Text { anchors.centerIn: parent; text: "★"; font.pixelSize: 9; color: "white" }
+                                }
+                            }
+
+                            // 中间内容
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 46 - 10 - 62 - 4; spacing: 4
+
+                                // 名字
+                                Text {
+                                    text: name
+                                    font.pixelSize: 15; font.weight: Font.DemiBold
+                                    color: nameColor(ucolor)
+                                    elide: Text.ElideRight
+                                    width: parent.width
+                                }
+
+                                // 最后消息预览（过滤换行）
+                                Text {
+                                    text: {
+                                        var p = (last || "").replace(/\n/g, " ").replace(/\r/g, "").trim()
+                                        return p.length > 24 ? p.substring(0, 24) + "…" : p
+                                    }
+                                    font.pixelSize: 13; color: clt(text2,text2)
+                                    elide: Text.ElideRight; width: parent.width
+                                }
+                            }
+
+                            // 右侧操作按钮
+                            Row {
+                                width: 62; anchors.verticalCenter: parent.verticalCenter; spacing: 4
+                                visible: hvr.containsMouse || favList.indexOf(uid) >= 0 || pinList.indexOf(uid) >= 0
+                                Rectangle {
+                                    width: 28; height: 28; radius: 10; color: favList.indexOf(uid) >= 0 ? "#FDE68A" : "transparent"
+                                    Text { anchors.centerIn: parent; text: favList.indexOf(uid) >= 0 ? "★" : "☆"; font.pixelSize: 13; color: favList.indexOf(uid) >= 0 ? "#D97706" : clt(text3,text3) }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tFav(uid) }
                                 }
                                 Rectangle {
-                                    visible: curUid === String(modelData.uid || "")
-                                    anchors.left:parent.left; anchors.top:parent.top; anchors.bottom:parent.bottom
-                                    width: 3; color:acc; radius:1.5
-                                }
-                                property string uid: String(modelData.uid || "")
-                                property string name: modelData.name || (modelData.user ? modelData.user.name : "") || ("用户" + uid)
-                                property string last: modelData.content || ""
-                                property int tm: modelData.time || 0
-                                property string ucolor: modelData.color || ""
-                                Behavior on color { ColorAnimation { duration: 160 } }
-                                Row {
-                                    anchors.fill:parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 12
-                                    Rectangle {
-                                        width: 48; height: 48; radius: 24; anchors.verticalCenter: parent.verticalCenter
-                                        color: clt("#E4E8F4","#152040")
-                                        Image {
-                                            anchors.fill:parent; anchors.margins:1
-                                            source: uid ? "https://cdn.luogu.com.cn/upload/usericon/" + uid + ".png" : ""
-                                            fillMode:Image.PreserveAspectCrop; asynchronous:true
-                                        }
-                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: showProf(uid,name) }
-                                        Rectangle {
-                                            visible: pinList.indexOf(uid) >= 0
-                                            width: 18; height: 18; radius: 9
-                                            x: parent.width - 14; y: parent.height - 14
-                                            color: orange
-                                            Text { anchors.centerIn:parent; text:"★"; font.pixelSize: 10; color:"white" }
-                                        }
-                                    }
-                                    Column {
-                                        anchors.verticalCenter: parent.verticalCenter; width: 170; spacing: 4
-                                        Row {
-                                            spacing: 4
-                                            Text { text: name; width: 110; elide:Text.ElideRight; font.pixelSize: 16; font.weight:Font.DemiBold; color:nameColor(ucolor) }
-                                            Item { Layout.fillWidth:true; height:1 }
-                                            Text { text: td(tm); font.pixelSize: 11; color: clt(text3,text3) }
-                                        }
-                                        Text {
-                                            text: last.length > 24 ? last.substring(0, 24) + "…" : last
-                                            font.pixelSize: 14; color: clt(text2,text2); elide:Text.ElideRight; width: 165
-                                        }
-                                    }
-                                }
-                                MouseArea {
-                                    id: hvr; anchors.fill:parent; cursorShape:Qt.PointingHandCursor; hoverEnabled:true
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    onClicked: function(m) {
-                                        if (m.button === Qt.RightButton) { cm._u = uid; cm.popup() }
-                                        else { selUser(uid, name, ucolor) }
-                                    }
-                                }
-                                Row {
-                                    anchors.right: parent.right; anchors.rightMargin: 8
-                                    anchors.verticalCenter: parent.verticalCenter; spacing: 3
-                                    visible: hvr.containsMouse || favList.indexOf(uid) >= 0 || pinList.indexOf(uid) >= 0
-                                    Rectangle {
-                                        width: 28; height: 28; radius: 8
-                                        color: favList.indexOf(uid) >= 0 ? "#FDE68A" : "transparent"
-                                        Text { anchors.centerIn:parent; text: favList.indexOf(uid) >= 0 ? "★" : "☆"; font.pixelSize: 13; color: favList.indexOf(uid) >= 0 ? "#D97706" : clt(text3,text3) }
-                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: tFav(uid) }
-                                    }
-                                    Rectangle {
-                                        width: 28; height: 28; radius: 8
-                                        color: pinList.indexOf(uid) >= 0 ? "#C7D2FE" : "transparent"
-                                        Text { anchors.centerIn:parent; text:"◉"; font.pixelSize: 13; color: pinList.indexOf(uid) >= 0 ? "#4F46E5" : clt(text3,text3) }
-                                        MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: tPin(uid) }
-                                    }
+                                    width: 28; height: 28; radius: 10; color: pinList.indexOf(uid) >= 0 ? "#C7D2FE" : "transparent"
+                                    Text { anchors.centerIn: parent; text: "◉"; font.pixelSize: 13; color: pinList.indexOf(uid) >= 0 ? "#4F46E5" : clt(text3,text3) }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tPin(uid) }
                                 }
                             }
+                        }  // end outer Row
+
+                        // 日期 — 绝对定位在列表项最右边
+                        Text {
+                            id: dateText
+                            text: td(tm)
+                            font.pixelSize: 11; color: clt(text3, text3)
+                            anchors.right: parent.right
+                            anchors.rightMargin: 14
+                            anchors.top: parent.top
+                            anchors.topMargin: 14
                         }
-                        Rectangle { width:parent.width; height:200; visible:chatList.length===0; color:"transparent"
-                            Column { anchors.centerIn:parent; spacing:12
-                                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"✉"; font.pixelSize:50; color:clt(text3,text3) }
-                                Text { anchors.horizontalCenter:parent.horizontalCenter; text:"暂无消息"; font.pixelSize:16; color:clt(text3,text3) }
+
+                        MouseArea {
+                            id: hvr; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: function(m) {
+                                if (m.button === Qt.RightButton) { cm._u = uid; cm.popup() }
+                                else { selUser(uid, name, ucolor) }
                             }
                         }
                     }
+
+                    // 空状态
+                    Rectangle {
+                        anchors.centerIn: parent; visible: chatList.length === 0 && !loading
+                        width: 220; height: 140; color: "transparent"
+                        Column { anchors.centerIn: parent; spacing: 14
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "✉"; font.pixelSize: 56; color: clt(text3,text3) }
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "暂无消息"; font.pixelSize: 16; color: clt(text3,text3) }
+                        }
+                    }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded; width: 8
+                    contentItem: Rectangle { radius: 4; color: clt("#C0C4D8","#3A4260"); opacity: 0.6 }
+                }
                 }
             }
 
-            // DIVIDER
+            // DIVIDER — 仅视觉分隔，不可拖拽
             Rectangle {
-                id: midRightDiv; Layout.preferredWidth: 8; Layout.fillHeight: true
-                color: "transparent"
-                property real startX: 0; property real startW: 0
-                // 视觉分隔线 — 居中细线
-                Rectangle { anchors.centerIn:parent; width:1.5; height:parent.height; color:clt(bd1,bd2) }
-                // 拖拽手柄 — 仅悬停时显示
-                Rectangle {
-                    anchors.centerIn: parent; width: 3; height: 50; radius: 1.5
-                    color: panelDrag.containsMouse ? acc : "transparent"
-                    opacity: panelDrag.containsMouse ? 0.5 : 0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                }
-                MouseArea {
-                    id: panelDrag; anchors.fill:parent; hoverEnabled:true; cursorShape:Qt.SplitHCursor
-                    drag{target:midRightDiv; axis:Drag.XAxis}
-                    onPressed: function(mouse){ midRightDiv.startW=midPanel.Layout.preferredWidth; midRightDiv.startX=mouse.x }
-                    onMouseXChanged: function(mouse){ if(drag.active) midPanel.Layout.preferredWidth=Math.max(180,Math.min(500,midRightDiv.startW+mouse.x-midRightDiv.startX)) }
-                }
+                Layout.preferredWidth: 4; Layout.fillHeight: true
+                color: clt(bd1, bd2)
+                visible: showList
             }
 
             // ═══ RIGHT — CHAT PANEL ═══
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 color: clt(cardBg,"#090F1C")
+                radius: 18
 
                 Column { anchors.fill:parent; spacing:0
 
+                    // 顶部标题栏
                     Rectangle {
-                        width: parent.width; height: 60; color:"transparent"
+                        width: parent.width; height: 56; color:"transparent"
                         gradient: Gradient {
                             GradientStop{position:0;color:clt("#F4F6FC","#0C1428")}
                             GradientStop{position:1;color:clt("#EDF0F8","#080F20")}
@@ -472,20 +565,20 @@ ApplicationWindow {
                             onDoubleClicked: function(mouse){ if(win.visibility===Window.Maximized) win.showNormal(); else win.showMaximized() }
 
                             Row { anchors.verticalCenter:parent.verticalCenter; spacing:12
-                                Rectangle { width:42; height:42; radius:21; color:clt("#E4E8F4","#152040")
+                                Rectangle { width:40; height:40; radius:20; color:clt("#E4E8F4","#152040")
                                     Image { anchors.fill:parent; anchors.margins:1
-                                        source: curUid ? "https://cdn.luogu.com.cn/upload/usericon/" + curUid + ".png" : ""
+                                        source: curAvatarSource || getAvatar(curUid)
                                         fillMode:Image.PreserveAspectCrop; asynchronous:true }
                                     MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor
                                         onClicked: { if(curUid){ tPin(curUid); toast(pinList.indexOf(curUid)>=0?"已置顶":"已取消置顶"); refreshList() } } }
                                 }
                                 Column { anchors.verticalCenter:parent.verticalCenter; spacing:2
                                     Row { spacing:8
-                                        Text { text:curName||"选择联系人"; font.pixelSize:17; font.weight:Font.DemiBold; color:nameColor(curColor) }
+                                        Text { text:curName||"选择联系人"; font.pixelSize:16; font.weight:Font.DemiBold; color:nameColor(curColor) }
                                     }
                                     Row { spacing:6
                                         Rectangle { width:8;height:8;radius:4;anchors.verticalCenter:parent.verticalCenter;color:wsStat==="connected"?green:red }
-                                        Text { text:wsStat==="connected"?"在线":"离线"; font.pixelSize:12; color:clt(text3,text3) }
+                                        Text { text:wsStat==="connected"?"在线":"离线"; font.pixelSize:11; color:clt(text3,text3) }
                                     }
                                 }
                             }
@@ -493,7 +586,7 @@ ApplicationWindow {
 
                         Row {
                             id: winCtrls; anchors.right:parent.right; anchors.rightMargin:16
-                            anchors.verticalCenter:parent.verticalCenter; spacing:12
+                            anchors.verticalCenter:parent.verticalCenter; spacing:10
                             // 加载指示器（右上角）
                             Row { visible: msgLoading; spacing: 6; anchors.verticalCenter: parent.verticalCenter
                                 Rectangle { width: 14; height: 14; radius: 7; anchors.verticalCenter: parent.verticalCenter; color: acc
@@ -506,14 +599,14 @@ ApplicationWindow {
                                 MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true
                                     onClicked:{if(curUid)loadMsgs(curUid,-1)} }
                             }
-                            Rectangle { width:18;height:18;radius:9;color:xmh.containsMouse?"#10B981":"#059669"
+                            Rectangle { width:18;height:18;radius:9;color:xmh.containsMouse?"#34D399":clt("#10B981","#10B981")
                                 MouseArea { id:xmh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true
                                     onClicked:{if(win.visibility===Window.Maximized)win.showNormal();else win.showMaximized()} }
                             }
-                            Rectangle { width:18;height:18;radius:9;color:xnh.containsMouse?"#F59E0B":"#D97706"
+                            Rectangle { width:18;height:18;radius:9;color:xnh.containsMouse?"#FCD34D":clt("#F59E0B","#F59E0B")
                                 MouseArea { id:xnh;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:win.showMinimized() }
                             }
-                            Rectangle { width:18;height:18;radius:9;color:xch.containsMouse?"#EF4444":"#DC2626"
+                            Rectangle { width:18;height:18;radius:9;color:xch.containsMouse?"#F87171":clt("#EF4444","#EF4444")
                                 MouseArea { id:xch;anchors.fill:parent;cursorShape:Qt.PointingHandCursor;hoverEnabled:true;onClicked:Qt.quit() }
                             }
                         }
@@ -521,7 +614,7 @@ ApplicationWindow {
 
                     // MESSAGE LIST
                     Item {
-                        id:msgArea; width:parent.width; height:parent.height - 185; clip:true
+                        id:msgArea; width:parent.width; height:parent.height - 180; clip:true
 
                         ListView {
                             id: msgList
@@ -551,12 +644,12 @@ ApplicationWindow {
                                 property string txt: (modelData.content || modelData.text || "")
                                 property string msgId: String(modelData.id || 0)
 
-                                // 对方头像
-                                Rectangle { visible:!im; opacity:im?0:1; width:30;height:30;radius:15
-                                    anchors.left:parent.left; anchors.leftMargin:4; y:parent.height-height-4
-                                    color:clt("#DCE0F0","#1A2848"); clip:true
+                    // 对方头像
+                    Rectangle { visible:!im; opacity:im?0:1; width:34;height:34;radius:17
+                        anchors.left:parent.left; anchors.leftMargin:6; y:parent.height-height-6
+                        color:clt("#DCE0F0","#1A2848"); clip:true
                                     Image { anchors.centerIn:parent; width:28; height:28
-                                        source:curUid?"https://cdn.luogu.com.cn/upload/usericon/"+curUid+".png":""
+                                        source: curAvatarSource || getAvatar(curUid)
                                         fillMode:Image.PreserveAspectCrop;asynchronous:true }
                                 }
 
@@ -564,8 +657,8 @@ ApplicationWindow {
                                 Rectangle {
                                     id: bubble
                                     property int bw: Math.min(Math.max(String(txt).length*14+52,60), parent.width-52)
-                                    width: bw; height: Math.max(txtEdit.contentHeight+24, 34)
-                                    x: im ? parent.width-width-8 : 40; y: 3; radius: 12
+                                    width: bw; height: txtEdit.contentHeight + 40
+                                    x: im ? parent.width-width-8 : 40; y: 3; radius: 16
                                     color: im ? acc : clt(cardBg2,"#111D35")
                                     border.width: im?0:1; border.color: clt("#D0D6E8","#1E2E50")
 
@@ -578,11 +671,12 @@ ApplicationWindow {
                                         wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                     }
 
+                                    // 完整日期时间显示
                                     Text {
                                         anchors.right:parent.right; anchors.rightMargin:10
-                                        anchors.bottom:parent.bottom; anchors.bottomMargin:3
-                                        text: td(modelData.time||0) + " " + tf(modelData.time||0)
-                                        font.pixelSize:10; color:im?"#ffffff50":clt(text3,text3)
+                                        anchors.bottom:parent.bottom; anchors.bottomMargin:4
+                                        text: tFull(modelData.time||0)
+                                        font.pixelSize:10; color:im?"#ffffff60":clt(text3,text3)
                                     }
 
                                     // 右键菜单 — MouseArea 只截获右键，左键穿透给 TextEdit
@@ -608,7 +702,7 @@ ApplicationWindow {
                                 }
                             }
 
-                            ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded; width:5; contentItem:Rectangle{radius:3;color:clt("#A0A8C0","#404860");opacity:0.5}}
+                            ScrollBar.vertical: ScrollBar{policy:ScrollBar.AsNeeded; width:8; contentItem:Rectangle{radius:4;color:clt("#A0A8C0","#404860");opacity:0.6}}
                         }
                     }
 
@@ -625,7 +719,7 @@ ApplicationWindow {
                         Column {
                             anchors.fill:parent; anchors.leftMargin:16; anchors.rightMargin:16; anchors.bottomMargin:10; spacing:8
                             Rectangle {
-                                width:parent.width; height:inputArea.height-42; radius:14
+                                width:parent.width; height:inputArea.height-42; radius:16
                                 gradient: Gradient {
                                     GradientStop{position:0;color:clt("#FFFFFF","#161E38")}
                                     GradientStop{position:1;color:clt("#F6F8FE","#101832")}
@@ -648,7 +742,7 @@ ApplicationWindow {
                             Row { width:parent.width; spacing:10
                                 Item { Layout.fillWidth:true;height:1 }
                                 Text { anchors.verticalCenter:parent.verticalCenter; text:mi.length+" 字"; font.pixelSize:12; color:mi.length>3000?red:clt(text3,text3) }
-                                Rectangle { width:72;height:34;radius:12
+                                Rectangle { width:72;height:34;radius:17
                                     gradient: Gradient{
                                         GradientStop{position:0;color:sbh.containsMouse?"#818CF8":acc}
                                         GradientStop{position:1;color:sbh.containsMouse?"#A78BFA":Qt.darker(acc,1.05)}
@@ -667,7 +761,7 @@ ApplicationWindow {
     // ═══ CONTEXT MENUS ═══
     Menu {
         id: msgMenu; property int _id:0; property string _txt:""
-        background: Rectangle{radius:12;color:clt("#FFFFFF","#111830");border.color:clt("#D8DDF0","#1E2E50");border.width:1}
+        background: Rectangle{radius:14;color:clt("#FFFFFF","#111830");border.color:clt("#D8DDF0","#1E2E50");border.width:1}
         MenuItem { text:"复制"; onTriggered:{bridge.copyText(msgMenu._txt);toast("已复制")} }
         MenuItem { text:"删除此消息"; onTriggered:{
             bridge.deleteMessage(String(msgMenu._id))
@@ -690,7 +784,7 @@ ApplicationWindow {
         Column { anchors.centerIn:parent; spacing:12; width:190
             Rectangle { width:72;height:72;radius:36;anchors.horizontalCenter:parent.horizontalCenter;color:clt("#E4E8F4","#1A2850")
                 Image { anchors.fill:parent;anchors.margins:2
-                    source: profUid ? "https://cdn.luogu.com.cn/upload/usericon/" + profUid + ".png" : ""
+                    source: getAvatar(profUid)
                     fillMode:Image.PreserveAspectCrop;asynchronous:true }
             }
             Text { anchors.horizontalCenter:parent.horizontalCenter; text:profName||"未知"; font.pixelSize:17; font.bold:true; color:clt(text1,text1) }
@@ -718,8 +812,10 @@ ApplicationWindow {
         property string localCustomSysPrompt: ""
         property string localKw: "zhl重要信息"
         property string localSrv: ""
-        property string localSysPrompt: ""
-        property string localQTemplate: ""
+        property string defaultSysPrompt: "你是我的私信管理助手。不要透露你自己的真实身份，只需要专注于判断消息重要性。如果重要请在回复中包含用户设定的关键词。"
+        property string defaultQTemplate: "你是我的私信管理助手，你需要帮我判断这个信息是否是重要的。重要的定义是排除娱乐等无意义内容，重要内容包含讨论问题，紧急情况等信息，是我在上课的时候需要了解的信息。如果重要，请在回复中分析之后明确包含 {keyword} 这个子串（如果有必要就分析，可以给我提示，以 提示： 开头，。 结束的话就是你针对这个消息给我的提示，可以视情况而决定写不写），可以加入你的分析和给我的提示。如果不重要就是 不重要消息。只有重要消息，我需要尽量马上了解的你才说。如果无法判断或者不是重要信息，请勿输出 {keyword} 这个子串（不能包含这个子串）。"
+        property string localSysPrompt: defaultSysPrompt
+        property string localQTemplate: defaultQTemplate
         property int tab: 0
         property bool localNPopup: true
         property string localNMode: "ai"
@@ -728,6 +824,20 @@ ApplicationWindow {
         property string localNFile: ""
         property string localPrefix: ""
         property string localSuffix: ""
+
+        // 自动回复
+        property bool localAREnabled: false
+        property string localARKeyword: "Zhl需要回复"
+        property string localARSysPrompt: "你是我的私信助手，需要帮我对重要的消息进行回复。"
+        property string localARCheckQ: "以下是一条消息，请判断是否需要回复。需要回复的消息通常是提问、请求或需要回应的内容。如果不需要回复请回复「不需要」，如果需要请回复「需要」并简要说明原因：\n{message}"
+        property string localARQuestion: "以下是一条需要回复的消息，请帮我生成一个简短得体的回复：\n{message}"
+
+        // 背景设置
+        property bool localBGEnabled: false
+        property string localBGMode: "conversation"
+        property int localBGMax: 20
+        property int localBGChars: 2000
+        property string localBGSuffix: ""
 
         onOpened: {
             var c = JSON.parse(bridge.getConfig())
@@ -740,13 +850,13 @@ ApplicationWindow {
 
             useDefaultAI = c.ai ? (c.ai.default !== false) : true
             localKw = c.ai ? (c.ai.important_keyword || "zhl重要信息") : "zhl重要信息"
-            localSysPrompt = c.ai ? (c.ai.system_prompt || "") : ""
-            localQTemplate = c.ai ? (c.ai.question_template || "") : ""
+            localSysPrompt = (c.ai && c.ai.system_prompt) ? c.ai.system_prompt : stg.defaultSysPrompt
+            localQTemplate = (c.ai && c.ai.question_template) ? c.ai.question_template : stg.defaultQTemplate
             if (c.ai && c.ai.custom) {
                 localApiUrl = c.ai.custom.base_url || ""
                 localApiKey = c.ai.custom.api_key || ""
                 localApiModel = c.ai.custom.model || ""
-                localCustomSysPrompt = c.ai.custom.custom_system_prompt || ""
+                localCustomSysPrompt = c.ai.custom.custom_system_prompt || stg.defaultSysPrompt
             }
             localSrv = c.server ? (c.server.url || "") : ""
             if (c.notification) {
@@ -757,6 +867,20 @@ ApplicationWindow {
                 localNFile = c.notification.sound_file || ""
                 localPrefix = c.notification.popup_prefix || ""
                 localSuffix = c.notification.popup_suffix || ""
+            }
+            if (c.auto_reply) {
+                localAREnabled = c.auto_reply.enabled !== false ? true : false
+                localARKeyword = c.auto_reply.keyword || "Zhl需要回复"
+                localARSysPrompt = c.auto_reply.system_prompt || ""
+                localARQuestion = c.auto_reply.question_template || ""
+                localARCheckQ = c.auto_reply.check_question || ""
+            }
+            if (c.background) {
+                localBGEnabled = c.background.enabled || false
+                localBGMode = c.background.mode || "conversation"
+                localBGMax = c.background.max_messages || 20
+                localBGChars = c.background.max_chars || 2000
+                localBGSuffix = c.background.suffix || ""
             }
         }
 
@@ -775,13 +899,16 @@ ApplicationWindow {
             }
             Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
             // 标签栏
-            Rectangle { width:parent.width; height:48; color:clt("#F2F4FC","#060C1A")
-                Row { anchors.centerIn:parent; spacing:6
+            Rectangle { width:parent.width; height:50; color:clt("#F6F8FF","#080F1E")
+                Row { anchors.centerIn: parent; spacing: 8
                     Repeater {
-                        model: ["账号","AI","通知","服务器"]
-                        Rectangle { width:90; height:34; radius:12
+                        model: ["账号","通知","服务器"]
+                        Rectangle { width:86; height:36; radius:18
                             color: index === stg.tab ? acc : "transparent"
-                            Text { anchors.centerIn:parent; text:modelData; font.pixelSize:14; color: index===stg.tab ? "white" : clt(text2,text2) }
+                            border.color: index === stg.tab ? "transparent" : clt(bd1,bd2)
+                            border.width: index === stg.tab ? 0 : 1
+                            Behavior on color { ColorAnimation { duration: 180 } }
+                            Text { anchors.centerIn:parent; text:modelData; font.pixelSize:14; font.weight: index===stg.tab ? Font.DemiBold : Font.Normal; color: index===stg.tab ? "white" : clt(text2,text2) }
                             MouseArea { anchors.fill:parent; cursorShape:Qt.PointingHandCursor; onClicked: stg.tab=index }
                         }
                     }
@@ -820,76 +947,8 @@ ApplicationWindow {
                         Text { text:bridge.hasSuperAllow()?"超级权限·无限制":"标准模式"; font.pixelSize:13; color:bridge.hasSuperAllow()?orange:green }
                     }
 
-                    // ═══ TAB 1: AI ═══
-                    Column { width:parent.width; spacing:14; visible:stg.tab===1; height:stg.tab===1?undefined:0
-                        // 启用开关
-                        Row { spacing:12
-                            Text { text:"启用 AI 判断"; font.pixelSize:15; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
-                            Rectangle { width:50; height:28; radius:14; anchors.verticalCenter:parent.verticalCenter; color:aiOn ? acc : clt("#CCD0E0","#283050")
-                                Rectangle { width:24;height:24;radius:12;x:aiOn?24:2;anchors.verticalCenter:parent.verticalCenter;color:"white";Behavior on x{NumberAnimation{duration:150}} }
-                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: aiOn = !aiOn }
-                            }
-                        }
-
-                        // AI 提供商选择
-                        Text { text:"AI 提供商"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                        Row { spacing:8
-                            Rectangle { width:(parent.width-8)/2; height:60; radius:14
-                                color: useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
-                                border.color: useDefaultAI ? acc : clt(bd1,bd2); border.width: useDefaultAI ? 2 : 1
-                                Column { anchors.centerIn:parent; spacing:3
-                                    Text { text:"默认"; font.pixelSize:15; font.bold:useDefaultAI; color:clt(text1,text1); anchors.horizontalCenter:parent.horizontalCenter }
-                                    Text { text:"系统内置"; font.pixelSize:11; color:clt(text3,text3); anchors.horizontalCenter:parent.horizontalCenter }
-                                }
-                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: useDefaultAI=true }
-                            }
-                            Rectangle { width:(parent.width-8)/2; height:60; radius:14
-                                color: !useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
-                                border.color: !useDefaultAI ? acc : clt(bd1,bd2); border.width: !useDefaultAI ? 2 : 1
-                                Column { anchors.centerIn:parent; spacing:3
-                                    Text { text:"自定义 API"; font.pixelSize:15; font.bold:!useDefaultAI; color:clt(text1,text1); anchors.horizontalCenter:parent.horizontalCenter }
-                                    Text { text:!useDefaultAI?"已配置":"自行提供"; font.pixelSize:11; color:clt(text3,text3); anchors.horizontalCenter:parent.horizontalCenter }
-                                }
-                                MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked: useDefaultAI=false }
-                            }
-                        }
-
-                        // 自定义 AI 配置（仅在自定义模式下显示）
-                        Column { visible:!useDefaultAI; spacing:12; width:parent.width
-                            Rectangle { width:parent.width; height:1; color:clt(bd1,bd2) }
-                            Text { text:"API Base URL"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
-                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
-                                    text:stg.localApiUrl; onTextChanged:stg.localApiUrl=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
-                            }
-                            Text { text:"API Key"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
-                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
-                                    echoMode:TextInput.Password; text:stg.localApiKey; onTextChanged:stg.localApiKey=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
-                            }
-                            Text { text:"模型名称"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                            Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
-                                TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
-                                    text:stg.localApiModel; onTextChanged:stg.localApiModel=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
-                            }
-                            Text { text:"系统提示词 (可自定义)"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                            Rectangle { width:parent.width; height:72; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
-                                TextArea { anchors.fill:parent; anchors.leftMargin:12;anchors.rightMargin:12;anchors.topMargin:8;anchors.bottomMargin:8
-                                    font.pixelSize:13; color:clt(text1,text1); text:stg.localCustomSysPrompt; onTextChanged:stg.localCustomSysPrompt=text
-                                    wrapMode:TextEdit.WordWrap; background:null; selectByMouse:true }
-                            }
-                        }
-
-                        // 检测子串
-                        Text { text:"检测子串 (重要消息关键词)"; font.pixelSize:14; font.weight:Font.DemiBold; color:clt(text1,text1) }
-                        Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
-                            TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
-                                text:stg.localKw; onTextChanged:stg.localKw=text; verticalAlignment:TextInput.AlignVCenter; selectByMouse:true }
-                        }
-                    }
-
-                    // ═══ TAB 2: 通知 ═══
-                    Column { width:parent.width; spacing:12; visible:stg.tab===2; height:stg.tab===2?undefined:0
+                    // ═══ TAB 1: 通知 ═══
+                    Column { width:parent.width; spacing:12; visible:stg.tab===1; height:stg.tab===1?undefined:0
                         Row { spacing:12
                             Text { text:"启用弹窗通知"; font.pixelSize:15; color:clt(text1,text1); anchors.verticalCenter:parent.verticalCenter }
                             Rectangle { width:50;height:28;radius:14;anchors.verticalCenter:parent.verticalCenter;color:stg.localNPopup?acc:clt("#CCD0E0","#283050")
@@ -944,8 +1003,8 @@ ApplicationWindow {
                         }
                     }
 
-                    // ═══ TAB 3: 服务器 ═══
-                    Column { width:parent.width; spacing:12; visible:stg.tab===3; height:stg.tab===3?undefined:0
+                    // ═══ TAB 2: 服务器 ═══
+                    Column { width:parent.width; spacing:12; visible:stg.tab===2; height:stg.tab===2?undefined:0
                         Text { text:"Worker URL"; font.pixelSize:14; color:clt(text2,text2) }
                         Rectangle { width:parent.width; height:42; radius:12; color:clt("#F2F4FC","#111830"); border.color:clt(bd1,bd2);border.width:1
                             TextInput { anchors.fill:parent; anchors.leftMargin:14; anchors.rightMargin:14; font.pixelSize:14; color:clt(text1,text1)
@@ -976,19 +1035,6 @@ ApplicationWindow {
                         MouseArea { anchors.fill:parent;cursorShape:Qt.PointingHandCursor;onClicked:{
                             var C = {
                                 luogu: { user_id: stg.uidInput, cookie: stg.clientIdInput },
-                                ai: {
-                                    enabled: aiOn,
-                                    important_keyword: stg.localKw,
-                                    default: useDefaultAI,
-                                    system_prompt: stg.localSysPrompt,
-                                    question_template: stg.localQTemplate,
-                                    custom: {
-                                        base_url: stg.localApiUrl,
-                                        api_key: stg.localApiKey,
-                                        model: stg.localApiModel,
-                                        custom_system_prompt: stg.localCustomSysPrompt
-                                    }
-                                },
                                 notification: {
                                     enabled: stg.localNPopup,
                                     sound_enabled: stg.localNSound,
@@ -1002,8 +1048,333 @@ ApplicationWindow {
                                 server: { url: stg.localSrv },
                                 theme: { mode: themeMode, accent: acc }
                             }
-                            bridge.saveConfig(JSON.stringify(C)); toast("设置已保存"); stg.close()
+                            bridge.saveConfig(JSON.stringify(C)); toast("设置已保存")
                         }}
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══ AI 设置面板 (独立于设置) ═══
+    Popup {
+        id: stgAI; modal: true; focus: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        width: Math.min(win.width * 0.7, 600); height: Math.min(win.height * 0.8, 620)
+        x: (win.width - width) / 2; y: (win.height - height) / 2; padding: 0
+        background: Rectangle { radius: 20; color: clt(cardBg, "#0C1324"); border.color: clt(bd1, bd2); border.width: 1 }
+        property int aitab: 0
+
+        Column { width: parent.width; height: parent.height
+            // 标题栏
+            Rectangle { width: parent.width; height: 50; color: "transparent"
+                Row { anchors.left: parent.left; anchors.leftMargin: 18; anchors.verticalCenter: parent.verticalCenter; spacing: 10
+                    Text { text: "🤖"; font.pixelSize: 22; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: "AI 设置"; font.pixelSize: 19; font.bold: true; color: clt(text1, text1); anchors.verticalCenter: parent.verticalCenter }
+                }
+                Rectangle { anchors.right: parent.right; anchors.rightMargin: 14; anchors.verticalCenter: parent.verticalCenter
+                    width: 30; height: 30; radius: 9; color: caih.containsMouse ? red : clt("#EEF0F8", "#121830")
+                    Text { anchors.centerIn: parent; text: "✕"; font.pixelSize: 15; color: caih.containsMouse ? "white" : clt(text2, text2) }
+                    MouseArea { id: caih; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true; onClicked: stgAI.close() }
+                }
+            }
+            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+
+            // 标签栏
+            Rectangle { width: parent.width; height: 50; color: clt("#F6F8FF", "#080F1E")
+                Row { anchors.centerIn: parent; spacing: 8
+                    Repeater {
+                        model: ["配置AI", "提示", "自动回复", "背景"]
+                        Rectangle { width: 86; height: 36; radius: 18
+                            color: index === stgAI.aitab ? acc : "transparent"
+                            border.color: index === stgAI.aitab ? "transparent" : clt(bd1, bd2)
+                            border.width: index === stgAI.aitab ? 0 : 1
+                            Behavior on color { ColorAnimation { duration: 180 } }
+                            Text { anchors.centerIn: parent; text: modelData; font.pixelSize: 14; font.weight: index === stgAI.aitab ? Font.DemiBold : Font.Normal; color: index === stgAI.aitab ? "white" : clt(text2, text2) }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stgAI.aitab = index }
+                        }
+                    }
+                }
+            }
+            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+
+            // 内容区
+            Flickable { id: aisf; width: parent.width; height: parent.height - 103; contentHeight: aicol.height + 24; clip: true
+                Column { id: aicol; width: parent.width - 32; x: 16; topPadding: 18; spacing: 14
+
+                    // ═══ TAB 0: 配置AI ═══
+                    Column { width: parent.width; spacing: 14; visible: stgAI.aitab === 0; height: stgAI.aitab === 0 ? undefined : 0
+                        Text { text: "AI 提供商"; font.pixelSize: 18; font.bold: true; color: clt(text1, text1) }
+                        Row { spacing: 10; width: parent.width
+                            Rectangle { width: parent.width / 2 - 5; height: 72; radius: 16
+                                color: useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
+                                border.color: useDefaultAI ? acc : clt(bd1,bd2); border.width: useDefaultAI ? 2 : 1
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Text { anchors.centerIn: parent; text: "默认 AI"; font.pixelSize: 16; font.bold: useDefaultAI; color: clt(text1, text1) }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 12; text: "内置模型"; font.pixelSize: 12; color: clt(text3, text3) }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: useDefaultAI = true }
+                            }
+                            Rectangle { width: parent.width / 2 - 5; height: 72; radius: 16
+                                color: !useDefaultAI ? clt("#E4EAFA","#142048") : clt("#F2F4FC","#111830")
+                                border.color: !useDefaultAI ? acc : clt(bd1,bd2); border.width: !useDefaultAI ? 2 : 1
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Text { anchors.centerIn: parent; text: "自定义 API"; font.pixelSize: 16; font.bold: !useDefaultAI; color: clt(text1, text1) }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 12; text: "OpenAI 兼容"; font.pixelSize: 12; color: clt(text3, text3) }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: useDefaultAI = false }
+                            }
+                        }
+
+                        // 默认AI说明
+                        Column { visible: useDefaultAI; spacing: 8; width: parent.width
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                            Rectangle { width: parent.width; radius: 12; color: clt("#EEF2FF", "#0E1530"); border.color: clt(bd1, bd2); border.width: 1
+                                Column { anchors.fill: parent; anchors.margins: 14; spacing: 6
+                                    Row { spacing: 6
+                                        Rectangle { width: 6; height: 6; radius: 3; color: acc; anchors.verticalCenter: parent.verticalCenter }
+                                        Text { text: "使用系统内置模型，无需额外配置 API Key"; font.pixelSize: 13; color: acc; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                    }
+                                    Text { text: "系统提示词和检测模板可在「提示」标签页中配置。"; font.pixelSize: 12; color: clt(text2, text2); wrapMode: Text.WordWrap; width: parent.width - 20 }
+                                }
+                            }
+                        }
+
+                        // 自定义API配置
+                        Column { visible: !useDefaultAI; spacing: 12; width: parent.width
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                            Text { text: "API Base URL"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Rectangle { width: parent.width; height: 42; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                TextInput { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; font.pixelSize: 14; color: clt(text1, text1)
+                                    text: stg.localApiUrl; onTextChanged: stg.localApiUrl = text; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true }
+                            }
+                            Text { text: "API Key"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Rectangle { width: parent.width; height: 42; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                TextInput { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; font.pixelSize: 14; color: clt(text1, text1)
+                                    echoMode: TextInput.Password; text: stg.localApiKey; onTextChanged: stg.localApiKey = text; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true }
+                            }
+                            Text { text: "模型名称"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Rectangle { width: parent.width; height: 42; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                TextInput { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; font.pixelSize: 14; color: clt(text1, text1)
+                                    text: stg.localApiModel; onTextChanged: stg.localApiModel = text; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true }
+                            }
+                        }
+                    }
+
+                    // ═══ TAB 1: 提示 ═══
+                    Column { width: parent.width; spacing: 14; visible: stgAI.aitab === 1; height: stgAI.aitab === 1 ? undefined : 0
+                        Text { text: "提示词配置"; font.pixelSize: 18; font.bold: true; color: clt(text1, text1) }
+
+                        // 系统提示词 — 仅自定义AI可编辑
+                        Column { spacing: 10; width: parent.width
+                            visible: !useDefaultAI
+                            Text { text: "系统提示词"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Rectangle { width: parent.width; height: 80; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                    font.pixelSize: 13; color: clt(text1, text1); text: stg.localCustomSysPrompt
+                                    onTextChanged: stg.localCustomSysPrompt = text; wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                            }
+                            Text { font.pixelSize: 11; color: clt(text3, text3); text: "AI 的角色设定，告诉 AI 它是什么。" }
+                        }
+                        // 默认AI: 系统提示词只读说明
+                        Rectangle { visible: useDefaultAI; width: parent.width; radius: 12; color: clt("#EEF2FF", "#0E1530"); border.color: clt(bd1, bd2); border.width: 1
+                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 4
+                                Text { font.pixelSize: 12; color: clt(text2, text2); text: "默认模型不支持自定义系统提示词，使用内置固定值。切换至自定义 API 后可编辑。"; wrapMode: Text.WordWrap; width: parent.width - 16 }
+                            }
+                        }
+
+                        // 普通提示词 — 都可用 (默认AI用localQTemplate, 自定义AI用localQTemplate)
+                        Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                        Text { text: "普通提示词 (检测模板)"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                        Rectangle { width: parent.width; height: 130; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                            TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                font.pixelSize: 13; color: clt(text1, text1); text: stg.localQTemplate
+                                onTextChanged: stg.localQTemplate = text; wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                        }
+                        Text { font.pixelSize: 11; color: clt(text3, text3); text: "检测消息重要性时发送给 AI 的模板，会自动拼接消息。用 {keyword} 代表检测子串。" }
+
+                        // 背景提示
+                        Rectangle { width: parent.width; radius: 12; color: clt("#EEF2FF", "#0E1530"); border.color: clt(bd1, bd2); border.width: 1
+                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 4
+                                Text { font.pixelSize: 12; color: clt(text2, text2); text: "提示词模板中可用 {background} 引用对方聊天历史。详细配置请在「背景」标签页中设置。"; wrapMode: Text.WordWrap; width: parent.width - 16 }
+                            }
+                        }
+                    }
+
+                    // ═══ TAB 2: 自动回复 ═══
+                    Column { width: parent.width; spacing: 14; visible: stgAI.aitab === 2; height: stgAI.aitab === 2 ? undefined : 0
+                        Text { text: "自动回复"; font.pixelSize: 18; font.bold: true; color: clt(text1, text1) }
+
+                        // 权限提示
+                        Rectangle { width: parent.width; radius: 12; color: clt("#EEF2FF", "#0E1530"); border.color: clt(bd1, bd2); border.width: 1
+                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 4
+                                Text { font.pixelSize: 12; color: clt(text2, text2); text: "默认模型不支持自动回复功能。仅自定义 API 或 UID 1049425 可使用。"; wrapMode: Text.WordWrap; width: parent.width - 16 }
+                            }
+                        }
+
+                        // 启用开关
+                        Row { spacing: 12
+                            Text { text: "启用自动回复"; font.pixelSize: 15; color: clt(text1, text1); anchors.verticalCenter: parent.verticalCenter }
+                            Rectangle { width: 50; height: 28; radius: 14; anchors.verticalCenter: parent.verticalCenter; color: stg.localAREnabled ? acc : clt("#CCD0E0", "#283050")
+                                Rectangle { width: 24; height: 24; radius: 12; x: stg.localAREnabled ? 24 : 2; anchors.verticalCenter: parent.verticalCenter; color: "white"; Behavior on x { NumberAnimation { duration: 150 } } }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stg.localAREnabled = !stg.localAREnabled }
+                            }
+                        }
+
+                        // 触发关键词
+                        Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                        Text { text: "触发关键词"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                        Rectangle { width: parent.width; height: 42; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                            TextInput { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; font.pixelSize: 14; color: clt(text1, text1)
+                                text: stg.localARKeyword; onTextChanged: stg.localARKeyword = text; verticalAlignment: TextInput.AlignVCenter; selectByMouse: true }
+                        }
+                        Text { font.pixelSize: 11; color: clt(text3, text3); text: "消息中包含此关键词时触发自动回复。" }
+
+                        // 系统提示词
+                        Text { text: "系统提示词"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                        Rectangle { width: parent.width; height: 72; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                            TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                font.pixelSize: 13; color: clt(text1, text1); text: stg.localARSysPrompt; onTextChanged: stg.localARSysPrompt = text
+                                wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                        }
+                        Text { font.pixelSize: 11; color: clt(text3, text3); text: "AI 的角色设定。" }
+
+                        // 判断问题
+                        Text { text: "判断是否需要回复"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                        Rectangle { width: parent.width; height: 80; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                            TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                font.pixelSize: 13; color: clt(text1, text1); text: stg.localARCheckQ; onTextChanged: stg.localARCheckQ = text
+                                wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                        }
+                        Text { font.pixelSize: 11; color: clt(text3, text3); text: "先询问 AI 此消息是否需要回复。若 AI 判断「需要」才继续生成回复。用 {message} 代表原始消息。" }
+
+                        // 提问模板
+                        Text { text: "回复内容模板"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                        Rectangle { width: parent.width; height: 80; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                            TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                font.pixelSize: 13; color: clt(text1, text1); text: stg.localARQuestion; onTextChanged: stg.localARQuestion = text
+                                wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                        }
+                        Text { font.pixelSize: 11; color: clt(text3, text3); text: "若需要回复，用此模板生成回复内容。" }
+                    }
+
+                    // ═══ TAB 3: 背景 ═══
+                    Column { width: parent.width; spacing: 14; visible: stgAI.aitab === 3; height: stgAI.aitab === 3 ? undefined : 0
+                        Text { text: "聊天背景上下文"; font.pixelSize: 18; font.bold: true; color: clt(text1, text1) }
+
+                        Rectangle { width: parent.width; radius: 12; color: clt("#EEF2FF", "#0E1530"); border.color: clt(bd1, bd2); border.width: 1
+                            Column { anchors.fill: parent; anchors.margins: 12; spacing: 4
+                                Text { font.pixelSize: 12; color: clt(text2, text2); text: "在提示词模板和自动回复模板中使用 {background} 即可引用聊天上下文。AI 会看到与此人的历史对话（含对方名字）。"; wrapMode: Text.WordWrap; width: parent.width - 16 }
+                            }
+                        }
+
+                        // 启用开关
+                        Row { spacing: 12
+                            Text { text: "启用背景"; font.pixelSize: 15; color: clt(text1, text1); anchors.verticalCenter: parent.verticalCenter }
+                            Rectangle { width: 50; height: 28; radius: 14; anchors.verticalCenter: parent.verticalCenter; color: stg.localBGEnabled ? acc : clt("#CCD0E0", "#283050")
+                                Rectangle { width: 24; height: 24; radius: 12; x: stg.localBGEnabled ? 24 : 2; anchors.verticalCenter: parent.verticalCenter; color: "white"; Behavior on x { NumberAnimation { duration: 150 } } }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stg.localBGEnabled = !stg.localBGEnabled }
+                            }
+                        }
+
+                        Column { visible: stg.localBGEnabled; spacing: 12; width: parent.width
+                            // 背景来源
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                            Text { text: "背景来源"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Row { spacing: 10
+                                Repeater {
+                                    model: [["conversation", "当前对话"], ["recent", "最近所有"]]
+                                    Rectangle { width: 90; height: 34; radius: 12
+                                        color: stg.localBGMode === modelData[0] ? acc : clt("#EEF0F8", "#121830")
+                                        border.color: stg.localBGMode === modelData[0] ? "transparent" : clt(bd1, bd2); border.width: stg.localBGMode === modelData[0] ? 0 : 1
+                                        Text { anchors.centerIn: parent; text: modelData[1]; font.pixelSize: 12; color: stg.localBGMode === modelData[0] ? "white" : clt(text2, text2) }
+                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: stg.localBGMode = modelData[0] }
+                                    }
+                                }
+                            }
+                            Text { font.pixelSize: 11; color: clt(text3, text3); text: "当前对话: 仅使用已缓存的对话记录 | 最近所有: 缓存不够时逐页拉取历史（间隔 0.8s，有缓存）"; wrapMode: Text.WordWrap; width: parent.width - 8 }
+
+                            // 限制设置
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                            Text { text: "限制设置"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Text { font.pixelSize: 11; color: clt(text3, text3); text: "从最新消息开始取，条数和字符数双限制，取最严格的。"; wrapMode: Text.WordWrap; width: parent.width - 8 }
+
+                            // 条数
+                            Row { spacing: 8
+                                Text { text: "最大条数"; font.pixelSize: 14; color: clt(text2, text2); anchors.verticalCenter: parent.verticalCenter }
+                                Rectangle { width: 64; height: 34; radius: 10; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                    TextInput { anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; font.pixelSize: 14; color: clt(text1, text1)
+                                        text: stg.localBGMax; onTextChanged: stg.localBGMax = parseInt(text) || 20; verticalAlignment: TextInput.AlignVCenter
+                                        validator: IntValidator { bottom: 1; top: 500 } }
+                                }
+                                Text { text: "条"; font.pixelSize: 14; color: clt(text2, text2); anchors.verticalCenter: parent.verticalCenter }
+                            }
+
+                            // 字符数
+                            Row { spacing: 8
+                                Text { text: "最大字符数"; font.pixelSize: 14; color: clt(text2, text2); anchors.verticalCenter: parent.verticalCenter }
+                                Rectangle { width: 64; height: 34; radius: 10; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                    TextInput { anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; font.pixelSize: 14; color: clt(text1, text1)
+                                        text: stg.localBGChars; onTextChanged: stg.localBGChars = parseInt(text) || 2000; verticalAlignment: TextInput.AlignVCenter
+                                        validator: IntValidator { bottom: 100; top: 20000 } }
+                                }
+                                Text { text: "字"; font.pixelSize: 14; color: clt(text2, text2); anchors.verticalCenter: parent.verticalCenter }
+                            }
+
+                            // 自定义后缀
+                            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+                            Text { text: "自定义后缀"; font.pixelSize: 14; font.weight: Font.DemiBold; color: clt(text1, text1) }
+                            Rectangle { width: parent.width; height: 80; radius: 12; color: clt("#F2F4FC", "#111830"); border.color: clt(bd1, bd2); border.width: 1
+                                TextArea { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 8; anchors.bottomMargin: 8
+                                    font.pixelSize: 13; color: clt(text1, text1); text: stg.localBGSuffix; onTextChanged: stg.localBGSuffix = text
+                                    wrapMode: TextEdit.WordWrap; background: null; selectByMouse: true }
+                            }
+                            Text { font.pixelSize: 11; color: clt(text3, text3); text: "后缀附加在聊天历史末尾，用于额外指令。聊天历史格式: [对方名字]: 消息内容 | [我]: 回复内容" }
+                        }
+                    }
+                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; width: 6; contentItem: Rectangle { radius: 3; color: clt("#A0A8C0", "#404860"); opacity: 0.6 } }
+            }
+
+            // 底部保存
+            Rectangle { width: parent.width; height: 1; color: clt(bd1, bd2) }
+            Rectangle { width: parent.width; height: 44; color: "transparent"
+                Row { anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; spacing: 12
+                    Rectangle { width: 80; height: 34; radius: 12; color: clt("#EEF0F8", "#121830")
+                        Text { anchors.centerIn: parent; text: "取消"; font.pixelSize: 14; color: clt(text2, text2) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { reloadCfg(); stgAI.close() } }
+                    }
+                    Rectangle { width: 80; height: 34; radius: 12; color: acc
+                        Text { anchors.centerIn: parent; text: "保存"; color: "white"; font.pixelSize: 14; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: {
+                            var C = {
+                                ai: {
+                                    enabled: aiOn,
+                                    important_keyword: stg.localKw,
+                                    default: useDefaultAI,
+                                    system_prompt: stg.localSysPrompt,
+                                    question_template: stg.localQTemplate,
+                                    custom: {
+                                        base_url: stg.localApiUrl,
+                                        api_key: stg.localApiKey,
+                                        model: stg.localApiModel,
+                                        custom_system_prompt: stg.localCustomSysPrompt
+                                    }
+                                },
+                                auto_reply: {
+                                    enabled: stg.localAREnabled,
+                                    keyword: stg.localARKeyword,
+                                    system_prompt: stg.localARSysPrompt,
+                                    check_question: stg.localARCheckQ,
+                                    question_template: stg.localARQuestion
+                                },
+                                background: {
+                                    enabled: stg.localBGEnabled,
+                                    mode: stg.localBGMode,
+                                    max_messages: stg.localBGMax,
+                                    max_chars: stg.localBGChars,
+                                    suffix: stg.localBGSuffix
+                                }
+                            }
+                            bridge.saveConfig(JSON.stringify(C)); toast("AI 设置已保存")
+                        } }
                     }
                 }
             }

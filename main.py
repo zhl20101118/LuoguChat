@@ -17,7 +17,26 @@ CACHE_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(CACHE_DIR, exist_ok=True)
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 ALLOW_FILE = os.path.join(BASE_DIR, "zhl_super_allow.txt")
-AVATAR_DIR = os.path.join(BASE_DIR, "avatars")
+AI_LOG_DIR = os.path.join(BASE_DIR, "aichat")
+os.makedirs(AI_LOG_DIR, exist_ok=True)
+AI_LOG_FILE = os.path.join(AI_LOG_DIR, "log.txt")
+
+def _log_ai(tag, messages, response):
+    """记录 AI 对话到 aichat/log.txt"""
+    t = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(AI_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*60}\n")
+            f.write(f"[{t}] {tag}\n")
+            f.write(f"{'='*60}\n")
+            for msg in messages:
+                role = msg.get("role", "?").upper()
+                content = msg.get("content", "")
+                f.write(f"[{role}] {content[:500]}\n")
+            f.write(f"[ASSISTANT] {response[:1000] if response else '(empty)'}\n")
+            f.write(f"{'='*60}\n\n")
+    except:
+        pass
 LOG_DIR = os.path.join(BASE_DIR, "log")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "debug.log")
@@ -92,7 +111,7 @@ def has_super_allow():
 DEFAULT_AI_KEY = "d3f58281b035422f86e8969b717fe684.l63UZdnwfJCF26uS"
 DEFAULT_AI_URL = "https://open.bigmodel.cn/api/paas/v4"
 DEFAULT_AI_MODEL = "glm-4-flash"
-DEFAULT_SYSTEM_PROMPT = "你是我的私信管理助手。不要透露你自己的真实身份，只需要专注于判断消息重要性。"
+DEFAULT_SYSTEM_PROMPT = "你是我的私信管理助手。不要透露你自己的真实身份，只需要专注于判断消息重要性。如果重要请在回复中包含用户设定的关键词。"
 DEFAULT_QUESTION_TEMPLATE = (
     "你是我的私信管理助手，你需要帮我判断这个信息是否是重要的。"
     "重要的定义是排除娱乐等无意义内容，重要内容包含讨论问题，紧急情况等信息，"
@@ -130,6 +149,19 @@ class Config:
             "modes": {
                 "class": {"name": "上课模式", "icon": "", "prompt": ""},
                 "free": {"name": "下课模式", "icon": "", "prompt": ""}
+            },
+            "auto_reply": {
+                "enabled": False,
+                "keyword": "Zhl需要回复",
+                "system_prompt": "你是我的私信助手，需要帮我对重要的消息进行回复。",
+                "check_question": "以下是一条消息，请判断是否需要回复。需要回复的消息通常是提问、请求或需要回应的内容。如果不需要回复请回复「不需要」，如果需要请回复「需要」并简要说明原因：\n{message}",
+                "question_template": "以下是一条需要回复的消息，请帮我生成一个简短得体的回复：\n{message}"
+            },
+            "background": {
+                "enabled": False,
+                "mode": "history",
+                "max_messages": 5,
+                "suffix": ""
             },
             "device_id": uuid.uuid4().hex[:12]
         }
@@ -427,7 +459,7 @@ class AIAssistant:
             c.get("api_key", ""),
             c.get("model", "") or DEFAULT_AI_MODEL)
 
-    def _chat(self, messages, model=None):
+    def _chat(self, messages, model=None, log_tag="AI_CHAT"):
         base_url, api_key, model_ = self._get_ai_config()
         model = model or model_
         if not api_key: return ""
@@ -436,9 +468,15 @@ class AIAssistant:
             r = requests.post(url, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={"model": model, "messages": messages}, timeout=30)
             if r.status_code == 200:
-                choices = r.json().get("choices", [])
-                if choices: return choices[0].get("message", {}).get("content", "")
-        except: pass
+                resp = r.json()
+                choices = resp.get("choices", [])
+                reply = choices[0].get("message", {}).get("content", "") if choices else ""
+                _log_ai(log_tag, messages, reply)
+                return reply
+            else:
+                _log_ai(log_tag + "_ERR", messages, r.text[:500])
+        except Exception as e:
+            _log_ai(log_tag + "_EXC", messages, str(e))
         return ""
 
     def check_importance(self, message, sender_name=""):
@@ -461,10 +499,13 @@ class AIAssistant:
             user_prompt += f"\n以下是要判断的消息（来自 {sender_name}）：{message}"
         else:
             user_prompt += f"\n以下是要判断的消息：{message}"
+        # 替换 background 占位符
+        bg_cfg = cfg.get("background", {})
+        user_prompt = user_prompt.replace("{background}", "" if not bg_cfg.get("enabled") else "(背景功能已启用，但重要性检测暂不注入完整历史)")
         msgs = []
         if sys_prompt.strip(): msgs.append({"role": "system", "content": sys_prompt})
         msgs.append({"role": "user", "content": user_prompt})
-        answer = self._chat(msgs)
+        answer = self._chat(msgs, log_tag="IMPORTANCE")
         is_important = keyword in answer
         return {"is_important": is_important, "analysis": answer, "tip": answer if is_important else ""}
 
@@ -610,6 +651,7 @@ class BackendBridge(QObject):
     avatarReady = Signal(str, str)
     serverSyncResult = Signal(str)
     replySent = Signal(bool, str)
+    autoReplyDone = Signal(str, str, str)  # uid, content, reply
     userProfileReady = Signal(str, str)
     showErrorPopup = Signal(str, str)
     fontReady = Signal(str)
@@ -643,6 +685,155 @@ class BackendBridge(QObject):
                     QTimer.singleShot(0, lambda: self._popup.show_message(
                         s_uid, s_name, content, avatar_url, r.get("tip", "")))
             self._pool.submit(_check)
+
+        # 自动回复检测
+        ar_cfg = cfg.get("auto_reply", {})
+        if ar_cfg.get("enabled", False):
+            ar_keyword = ar_cfg.get("keyword", "Zhl需要回复")
+            if ar_keyword in content:
+                _log("AUTO_REPLY", f"检测到自动回复关键词, uid={s_uid}")
+                def _auto_reply():
+                    self._do_auto_reply(s_uid, content, s_name, my_uid, ar_cfg)
+                self._pool.submit(_auto_reply)
+
+    def _do_auto_reply(self, target_uid, content, sender_name, my_uid, ar_cfg):
+        """执行自动回复：先问 AI 是否需要回复，若需要则生成回复并发送"""
+        my_id = cfg.get("luogu.user_id", "")
+        is_custom_ai = not cfg.get("ai.default", True)
+        if not is_custom_ai and my_id != "1049425":
+            _log("AUTO_REPLY", f"非自定义AI且uid非1049425，跳过: uid={my_id}")
+            return
+
+        ai = AIAssistant()
+        sys_prompt = ar_cfg.get("system_prompt", "")
+        bg_text = self._get_background(target_uid)
+
+        # Step 1: 问 AI 是否需要回复
+        check_q = ar_cfg.get("check_question", "")
+        if not check_q:
+            check_q = "以下是一条消息，请判断是否需要回复。如果不需要回复请回复「不需要」，如果需要请回复「需要」：\n{message}"
+        check_question = check_q.replace("{message}", content).replace("{background}", bg_text)
+        msgs1 = []
+        if sys_prompt.strip():
+            msgs1.append({"role": "system", "content": sys_prompt})
+        msgs1.append({"role": "user", "content": check_question})
+
+        _log("AUTO_REPLY", "Step1: 判断是否需要回复...")
+        check_result = ai._chat(msgs1, log_tag="AUTO_CHECK")
+        if not check_result or "不需要" in check_result and "需要" not in check_result.replace("不需要", ""):
+            _log("AUTO_REPLY", f"AI判断不需要回复: {check_result[:80] if check_result else 'empty'}")
+            return
+
+        # Step 2: 生成回复
+        q_template = ar_cfg.get("question_template", "")
+        question = q_template.replace("{message}", content).replace("{background}", bg_text)
+        msgs2 = []
+        if sys_prompt.strip():
+            msgs2.append({"role": "system", "content": sys_prompt})
+        msgs2.append({"role": "user", "content": question})
+
+        _log("AUTO_REPLY", "Step2: 生成回复中...")
+        reply = ai._chat(msgs2, log_tag="AUTO_REPLY")
+        if reply and reply.strip():
+            _log("AUTO_REPLY", f"AI回复: {reply[:80]}")
+            ok = self.luogu.send_message(target_uid, reply.strip())
+            if ok:
+                self.replySent.emit(True, "")
+                self.autoReplyDone.emit(target_uid, content, reply.strip())
+                _log("AUTO_REPLY", f"回复已发送 -> {target_uid}")
+            else:
+                _log("AUTO_REPLY", "发送失败")
+                self.replySent.emit(False, "自动回复发送失败")
+        else:
+            _log("AUTO_REPLY", "AI未生成回复")
+
+    def _format_msg(self, m, my_uid):
+        """格式化单条消息为一行文本（不含换行）"""
+        sender = m.get("sender", {})
+        sname = sender.get("name", "?")
+        suid = str(sender.get("uid", ""))
+        mc = m.get("content", "")
+        return f"[{sname}]: {mc}" if suid != my_uid else f"[我]: {mc}"
+
+    def _trim_msgs(self, msgs, max_msgs, max_chars, my_uid):
+        """从消息列表末尾（最新）向前取，直到达到条数或字符数限制"""
+        lines = []
+        total_chars = 0
+        for m in reversed(msgs):
+            line = self._format_msg(m, my_uid)
+            if len(lines) >= max_msgs or total_chars + len(line) > max_chars:
+                break
+            lines.append(line)
+            total_chars += len(line)
+        lines.reverse()  # 恢复时间正序
+        return lines, total_chars
+
+    def _get_background(self, uid):
+        """获取聊天背景上下文。
+
+        模式:
+          conversation — 仅使用当前已缓存的对话记录，不额外请求
+          recent      — 从最新页开始逐页向洛谷请求更早记录，直到达到限制或第一页
+                       请求间隔 0.8s；每页结果独立缓存到 data/ 目录。"""
+        bg_cfg = cfg.get("background", {})
+        if not bg_cfg.get("enabled", False):
+            return ""
+        try:
+            bg_mode = bg_cfg.get("mode", "conversation")
+            max_msgs = bg_cfg.get("max_messages", 20)
+            max_chars = bg_cfg.get("max_chars", 2000)
+            suffix = bg_cfg.get("suffix", "")
+            my_uid = cfg.get("luogu.user_id", "")
+
+            if bg_mode == "conversation":
+                # 当前对话：仅用缓存的最新一页
+                data = self.luogu.get_messages(uid)
+                msgs = data.get("messages", [])
+                if not msgs:
+                    return ""
+                recent_lines, total_chars = self._trim_msgs(msgs, max_msgs, max_chars, my_uid)
+                _log("BG", f"[当前对话] {len(recent_lines)}条/{total_chars}字 uid={uid}")
+            else:
+                # 最近所有：逐页向洛谷请求直到达到限制或第一页
+                all_msgs = []       # 时间正序（旧→新），跨页
+                total_pages = None
+                page = 0
+
+                while True:
+                    data = self.luogu.get_messages(uid, page if page > 0 else None)
+                    msgs = data.get("messages", [])
+                    if not msgs:
+                        break
+
+                    if total_pages is None:
+                        total_pages = data.get("totalPages", 1)
+
+                    all_msgs = msgs + all_msgs
+                    _log("BG", f"[最近所有] 已拉取第{page}页({len(msgs)}条) uid={uid}，累计{len(all_msgs)}条")
+
+                    current_chars = sum(len(self._format_msg(m, my_uid)) for m in all_msgs)
+                    if len(all_msgs) >= max_msgs or current_chars >= max_chars:
+                        _log("BG", f"[最近所有] 已达限制: {len(all_msgs)}条/{current_chars}字")
+                        break
+                    if total_pages is not None and page + 1 >= total_pages:
+                        _log("BG", f"[最近所有] 已到末页({total_pages}页)")
+                        break
+                    page += 1
+                    time.sleep(0.8)
+
+                if not all_msgs:
+                    return ""
+                recent_lines, total_chars = self._trim_msgs(all_msgs, max_msgs, max_chars, my_uid)
+                _log("BG", f"[最近所有] 最终: {len(recent_lines)}条/{total_chars}字 uid={uid}")
+
+            lines = ["以下是最近的聊天记录："] + recent_lines
+            result = "\n".join(lines)
+            if suffix.strip():
+                result += "\n" + suffix.strip()
+            return result
+        except Exception as e:
+            _log("BG", f"获取背景失败: {e}")
+            return ""
 
     @Slot(result=str)
     def getConfig(self):
