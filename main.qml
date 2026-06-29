@@ -740,10 +740,11 @@ ApplicationWindow {
 
                                 // 黄金分割线: 左至右61.8%
                                 property int maxBubbleWidth: Math.floor((parent ? parent.width : 400) * 0.618)
-                                height: Math.max(40, childrenRect.height)
+                                height: im ? rowMe.height + 4 : rowIn.height + 4
 
                                 // 别人消息 — 左侧头像 + 气泡偏左
                                 Row {
+                                    id: rowIn
                                     visible: !im; anchors.left: parent.left; anchors.leftMargin: 4
                                     spacing: 8
                                     Rectangle { width:34; height:34; radius:avatarRounded?8:17
@@ -763,7 +764,7 @@ ApplicationWindow {
                                             id:txtEditIn; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true
+                                            height:contentHeight; readOnly:true; selectByMouse:true
                                             text:msgRow.txt; font.pixelSize:15; color:clt(text1,text1)
                                             wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
@@ -778,6 +779,7 @@ ApplicationWindow {
 
                                 // 自己消息 — 气泡 + 右侧头像
                                 Row {
+                                    id: rowMe
                                     visible: im; anchors.right: parent.right; anchors.rightMargin: 4; spacing: 8
                                     Rectangle {
                                         property int bw: Math.min(Math.max(String(txt).length*14+50,56), msgRow.maxBubbleWidth)
@@ -788,7 +790,7 @@ ApplicationWindow {
                                             id:txtEditMe; anchors.left:parent.left; anchors.leftMargin:12
                                             anchors.right:parent.right; anchors.rightMargin:12
                                             anchors.top:parent.top; anchors.topMargin:10
-                                            height:contentHeight; readOnly:true
+                                            height:contentHeight; readOnly:true; selectByMouse:true
                                             text:msgRow.txt; font.pixelSize:15; color:"#FFFFFF"
                                             wrapMode:TextEdit.WordWrap; textFormat:TextEdit.PlainText
                                         }
@@ -811,12 +813,16 @@ ApplicationWindow {
 
                                 // 右键菜单 — 放在 delegate 最上层 (最后渲染)
                                 MouseArea {
-                                    anchors.fill: parent; acceptedButtons: Qt.RightButton
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    propagateComposedEvents: true
                                     onClicked: function(mouse) {
-                                        msgMenu._id = String(modelData.id || 0)
-                                        msgMenu._txt = msgRow.txt
-                                        msgMenu.x = mouse.x + 10; msgMenu.y = mouse.y + 10
-                                        msgMenu.open()
+                                        if (mouse.button === Qt.RightButton) {
+                                            msgMenu._id = msgRow.msgId
+                                            msgMenu._txt = msgRow.txt
+                                            msgMenu.x = mouse.x + 10; msgMenu.y = mouse.y + 10
+                                            msgMenu.open()
+                                        }
                                     }
                                 }
                             }
