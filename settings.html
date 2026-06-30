@@ -1,0 +1,172 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><title>设置 - LuoguChat</title>
+<style>
+:root{--bg1:#EDF0F8;--bg2:#F4F6FC;--sideBg:#E4E8F8;--cardBg:#FFF;--cardBg2:#F8FAFD;--text1:#181A2C;--text2:#565C7A;--text3:#9399B6;--bd1:#D5DBF0;--bd2:#E2E7F6;--hover:#EBF0FF;--select:#DDE4FF;--accent:#6366F1;--accent4:#06B6D4;--green:#10B981;--red:#EF4444;--radius:14px;--radius-sm:10px;--font:"PingFang SC","Microsoft YaHei",sans-serif}
+body.dark{--bg1:#060B16;--bg2:#0A1020;--sideBg:#040A14;--cardBg:#0D1428;--cardBg2:#0F182E;--text1:#E2E6F2;--text2:#8890B4;--text3:#586080;--bd1:#192242;--bd2:#1C284A;--hover:#131C32;--select:#182648}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg1);color:var(--text1);overflow:hidden;height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--bd1);border-radius:3px}
+
+/* Titlebar */
+#tb{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 12px 0 16px;background:var(--sideBg);border-bottom:1px solid var(--bd1);-webkit-app-region:drag;flex-shrink:0}
+.tb-title{font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:8px}
+.tb-dot{width:8px;height:8px;border-radius:4px;background:var(--accent)}
+.tl{display:flex;gap:8px;-webkit-app-region:no-drag;align-items:center}
+.tl-btn{width:16px;height:16px;border-radius:8px;border:none;cursor:pointer;padding:0}.tl-close{background:#FF5F57}.tl-close:hover{background:#E0443E}.tl-min{background:#FFBD2E}.tl-min:hover{background:#E0A51E}
+
+/* Content */
+#content{flex:1;overflow-y:auto;padding:18px 22px}
+.toast-msg{position:fixed;top:50px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast-msg.show{opacity:1}
+
+/* Tabs */
+.tabs{display:flex;gap:3px;margin-bottom:16px;background:var(--cardBg2);border-radius:10px;padding:3px}
+.tab{flex:1;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;font-family:var(--font);color:var(--text2);background:transparent;transition:.2s;text-align:center}
+.tab.active{background:var(--accent);color:#fff}.tab:hover:not(.active){color:var(--accent)}
+
+/* Forms */
+.fg{margin-bottom:14px}
+.fl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block}
+input[type="text"],input[type="password"],input[type="number"],input[type="url"],input[type="color"],textarea,select{width:100%;padding:9px 14px;border:1px solid var(--bd2);border-radius:8px;font-size:13px;font-family:var(--font);background:var(--cardBg);color:var(--text1);outline:none;transition:.2s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.06)}
+textarea{min-height:60px;resize:vertical;line-height:1.5}
+input[type="color"]{width:44px;height:34px;cursor:pointer;padding:2px}
+input[type="number"]{width:80px}
+.fr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.fr label{font-size:13px;color:var(--text2);min-width:80px;flex-shrink:0}
+.fh{font-size:11px;color:var(--text3);margin-top:4px}
+
+/* Toggle */
+.toggle{width:42px;height:24px;border-radius:12px;background:var(--bd1);position:relative;cursor:pointer;transition:.2s;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:9px;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.toggle.on::after{left:21px}
+
+/* Buttons */
+.btn{padding:8px 20px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:.2s;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn-p{background:linear-gradient(135deg,var(--accent),var(--accent4));color:#fff}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(99,102,241,.35)}
+.btn-s{background:var(--cardBg);color:var(--text1);border:1px solid var(--bd1)}
+.btn-s:hover{background:var(--hover)}
+.btn-sm{padding:5px 12px;font-size:11px;border-radius:6px}
+.btn-row{display:flex;gap:8px;margin-top:8px}
+#login-result{margin-top:8px;font-size:12px}
+
+/* Status bar */
+#status-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 22px;border-top:1px solid var(--bd2);font-size:12px;color:var(--text3);flex-shrink:0}
+#status-bar .stat{display:flex;align-items:center;gap:6px}
+#status-bar .stat-val{color:var(--accent);font-weight:600}
+</style></head>
+<body>
+<div id="tb">
+  <div class="tb-title"><span class="tb-dot"></span>设置</div>
+  <div class="tl">
+    <button class="tl-btn tl-min" onclick="bridge.minimizeWindow()"></button>
+    <button class="tl-btn tl-close" onclick="window.close()"></button>
+  </div>
+</div>
+<div class="toast-msg" id="toast"></div>
+<div id="content"></div>
+<div id="status-bar">
+  <span class="stat">AI用量: <span class="stat-val" id="sv-rem">50</span> / <span class="stat-val" id="sv-total">50</span></span>
+  <span class="stat">UID: <span class="stat-val" id="sv-uid">-</span></span>
+</div>
+<script>
+const C={};
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+function ts(el,v){el.classList.toggle('on',v);el.nextElementSibling&&(el.nextElementSibling.value=v?'true':'false')}
+function toggleT(el){const v=!el.classList.contains('on');ts(el,v)}
+
+async function init(){
+  const j=await bridge.getConfig();Object.assign(C,JSON.parse(j));
+  // Match theme
+  const m=C.theme?.mode||2;
+  if(m===1)document.body.classList.add('dark');
+  else if(m===2)document.body.classList.toggle('dark',window.matchMedia('(prefers-color-scheme:dark)').matches);
+  // Status bar
+  document.getElementById('sv-uid').textContent=C.luogu?.user_id||'-';
+  try{const sj=await bridge.syncNow();const d=JSON.parse(sj);document.getElementById('sv-rem').textContent=d.remaining||50;document.getElementById('sv-total').textContent=d.total||50}catch{}
+  render();
+}
+function render(){document.getElementById('content').innerHTML=htmlLogin()+htmlNotif()+htmlTheme()}
+
+function htmlLogin(){
+  const l=C.luogu||{},s=C.server||{};
+  return`<div class="tabs"><button class="tab active" onclick="sw('login',this)">🔑 登录</button><button class="tab" onclick="sw('notif',this)">🔔 通知</button><button class="tab" onclick="sw('theme',this)">🎨 外观</button></div>
+<div id="s-login"><div class="fg"><label class="fl">UID</label><input id="cfg-uid" type="text" value="${l.user_id||''}" placeholder="输入UID"></div>
+<div class="fg"><label class="fl">Cookie</label><textarea id="cfg-cookie" style="min-height:50px">${l.cookie||''}</textarea><div class="fh">自动转换格式: _uid=xxx; __client_id=xxx</div></div>
+<div class="btn-row"><button class="btn btn-p btn-sm" onclick="doTestLogin()">测试登录</button><button class="btn btn-s btn-sm" onclick="saveLogin()">保存</button></div>
+<div id="login-result" style="margin-top:8px;font-size:12px"></div>
+<div class="fg" style="margin-top:12px"><label class="fl">Worker URL</label><input id="cfg-server-url" type="text" value="${s.url||''}" placeholder="Cloudflare Worker URL"></div></div>`;
+}
+
+function htmlNotif(){
+  const n=C.notification||{};
+  return`<div id="s-notif" style="display:none"><div class="fr"><label>启用弹窗通知</label><div class="toggle ${n.enabled!==false?'on':''}" id="tg-npopup" onclick="toggleT(this)"></div><input type="hidden" id="tg-npopup-v" value="${n.enabled!==false?'true':'false'}"></div>
+<div class="fr"><label>启用声音</label><div class="toggle ${n.sound_enabled!==false?'on':''}" id="tg-nsound" onclick="toggleT(this)"></div><input type="hidden" id="tg-nsound-v" value="${n.sound_enabled!==false?'true':'false'}"></div>
+<div class="fr"><label>声音类型</label><select id="cfg-stype"><option value="system" ${n.sound_type==='system'?'selected':''}>系统提示音</option><option value="mp3" ${n.sound_type==='mp3'?'selected':''}>MP3文件</option></select></div>
+<div class="fr"><label>MP3路径</label><input id="cfg-sfile" type="text" value="${n.sound_file||''}" placeholder="自定义声音文件路径"></div>
+<div class="fr"><label>弹窗模式</label><select id="cfg-pmode"><option value="ai" ${n.popup_mode==='ai'?'selected':''}>AI判断</option><option value="all" ${n.popup_mode==='all'?'selected':''}>全部消息</option><option value="none" ${n.popup_mode==='none'?'selected':''}>关闭弹窗</option></select></div>
+<div class="fr"><label>提示前缀</label><input id="cfg-pprefix" type="text" value="${n.popup_prefix||'提示：'}"></div>
+<div class="fr"><label>提示后缀</label><input id="cfg-psuffix" type="text" value="${n.popup_suffix||'。'}"></div>
+<button class="btn btn-p btn-sm" onclick="saveNotif()">保存通知设置</button></div>`;
+}
+
+function htmlTheme(){
+  const th=C.theme||{};
+  return`<div id="s-theme" style="display:none"><div class="fr"><label>主题模式</label><select id="cfg-theme-mode"><option value="0" ${th.mode===0?'selected':''}>浅色</option><option value="1" ${th.mode===1?'selected':''}>深色</option><option value="2" ${th.mode===2?'selected':''}>跟随系统</option></select></div>
+<div class="fr"><label>强调色</label><input id="cfg-accent" type="color" value="${th.accent||'#6366F1'}"></div>
+<div class="fr"><label>头像圆形</label><div class="toggle ${th.avatar_rounded?'on':''}" id="tg-avr" onclick="toggleT(this)"></div><input type="hidden" id="tg-avr-v" value="${th.avatar_rounded?'true':'false'}"></div>
+<div class="fr"><label>无痕模式</label><div class="toggle ${C.incognito?'on':''}" id="tg-incog" onclick="toggleT(this);saveIncognito()"></div><input type="hidden" id="tg-incog-v" value="${C.incognito?'true':'false'}"><span class="fh" style="flex:1;min-width:0">开启后不保存任何本地记录和缓存</span></div>
+<div class="fh" style="margin-bottom:12px;color:var(--red)" id="incog-warn" ${C.incognito?'':'style="display:none"'}>⚠ 无痕模式已开启，关闭并重启后生效</div>
+<button class="btn btn-p btn-sm" onclick="saveTheme()">应用主题</button></div>`;
+}
+
+function sw(id,btn){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  ['login','notif','theme'].forEach(i=>{const el=document.getElementById('s-'+i);if(el)el.style.display=i===id?'':'none'});
+}
+
+async function doTestLogin(){
+  const uid=document.getElementById('cfg-uid').value.trim(),cookie=document.getElementById('cfg-cookie').value.trim();
+  const r=document.getElementById('login-result');r.textContent='测试中...';r.style.color='var(--text2)';
+  const d=await bridge.testLogin(uid,cookie);
+  r.innerHTML=d.ok?`<span style="color:var(--green)">✅ ${d.name} (UID:${d.uid})</span>`:`<span style="color:var(--red)">❌ ${d.error}</span>`;
+  if(d.ok){document.getElementById('sv-uid').textContent=d.uid}
+}
+async function saveLogin(){
+  const uid=document.getElementById('cfg-uid').value.trim(),cookie=document.getElementById('cfg-cookie').value.trim();
+  const srv=document.getElementById('cfg-server-url').value.trim();
+  if(uid||cookie)await bridge.setCookieFormat(uid,cookie||uid);
+  if(srv!==undefined)await bridge.saveConfig(JSON.stringify({server:{url:srv}}));
+  toast('登录信息已保存');
+}
+async function saveNotif(){
+  await bridge.saveConfig(JSON.stringify({notification:{
+    enabled:document.getElementById('tg-npopup-v').value==='true',
+    sound_enabled:document.getElementById('tg-nsound-v').value==='true',
+    sound_type:document.getElementById('cfg-stype').value,
+    sound_file:document.getElementById('cfg-sfile').value.trim(),
+    popup_mode:document.getElementById('cfg-pmode').value,
+    popup_prefix:document.getElementById('cfg-pprefix').value.trim(),
+    popup_suffix:document.getElementById('cfg-psuffix').value.trim()
+  }}));
+  toast('通知设置已保存');
+}
+async function saveTheme(){
+  const mode=parseInt(document.getElementById('cfg-theme-mode').value);
+  const accent=document.getElementById('cfg-accent').value;
+  const avr=document.getElementById('tg-avr-v').value==='true';
+  await bridge.saveConfig(JSON.stringify({theme:{mode,accent,avatar_rounded:avr}}));
+  document.body.classList.toggle('dark',mode===1);
+  toast('主题已应用');
+}
+async function saveIncognito(){
+  const v=document.getElementById('tg-incog-v').value==='true';
+  await bridge.saveConfig(JSON.stringify({incognito:v}));
+  document.getElementById('incog-warn').style.display=v?'':'none';
+  toast(v?'无痕模式已开启 (重启后生效)':'无痕模式已关闭');
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script></body></html>

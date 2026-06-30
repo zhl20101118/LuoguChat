@@ -9,3 +9,5 @@ sounds/
 data/
 log/
 avatars/
+node_modules/
+%SystemDrive%

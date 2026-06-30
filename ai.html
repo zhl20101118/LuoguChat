@@ -1,0 +1,265 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><title>AI 配置 - LuoguChat</title>
+<style>
+:root{--bg1:#EDF0F8;--bg2:#F4F6FC;--sideBg:#E4E8F8;--cardBg:#FFF;--cardBg2:#F8FAFD;--text1:#181A2C;--text2:#565C7A;--text3:#9399B6;--bd1:#D5DBF0;--bd2:#E2E7F6;--hover:#EBF0FF;--accent:#6366F1;--accent2:#818CF8;--accent4:#06B6D4;--green:#10B981;--red:#EF4444;--orange:#F59E0B;--radius:14px;--font:"PingFang SC","Microsoft YaHei",sans-serif}
+body.dark{--bg1:#060B16;--bg2:#0A1020;--sideBg:#040A14;--cardBg:#0D1428;--cardBg2:#0F182E;--text1:#E2E6F2;--text2:#8890B4;--text3:#586080;--bd1:#192242;--bd2:#1C284A;--hover:#131C32}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg1);color:var(--text1);overflow:hidden;height:100vh;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--bd1);border-radius:3px}
+
+#tb{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 16px;background:var(--sideBg);border-bottom:1px solid var(--bd1);-webkit-app-region:drag;flex-shrink:0}
+.tb-title{font-size:13px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:10px}
+.tb-dot{width:9px;height:9px;border-radius:5px;background:linear-gradient(135deg,var(--accent),var(--accent4))}
+.tl{display:flex;gap:8px;-webkit-app-region:no-drag;align-items:center}
+.tl-btn{width:16px;height:16px;border-radius:8px;border:none;cursor:pointer;padding:0}.tl-close{background:#FF5F57}.tl-close:hover{background:#E0443E}.tl-min{background:#FFBD2E}.tl-min:hover{background:#E0A51E}
+
+#content{flex:1;overflow-y:auto;padding:20px 24px}
+.toast{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.on{opacity:1}
+
+/* Card style */
+.ai-card{background:var(--cardBg);border:1px solid var(--bd2);border-radius:var(--radius);padding:20px;margin-bottom:16px;transition:.2s}
+.ai-card:hover{border-color:rgba(99,102,241,0.2)}
+.ai-card.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.06)}
+.ai-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ai-card-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.ai-card-badge{font-size:10px;padding:2px 10px;border-radius:10px;font-weight:600}
+.badge-on{background:rgba(16,185,129,0.1);color:var(--green)}
+.badge-off{background:rgba(239,68,68,0.08);color:var(--red)}
+.ai-card-desc{font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.5}
+.ai-card-body{display:none}
+.ai-card.active .ai-card-body{display:block;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd2)}
+
+/* Toggle switch big */
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--bd1);position:relative;cursor:pointer;transition:.25s;flex-shrink:0}
+.toggle.on{background:var(--green)}
+.toggle:after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:10px;background:#fff;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.toggle.on:after{left:21px}
+
+/* Form fields */
+.fg{margin-bottom:14px}
+.fl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+input,textarea,select{width:100%;padding:10px 14px;border:1px solid var(--bd2);border-radius:8px;font-size:13px;font-family:var(--font);background:var(--cardBg2);color:var(--text1);outline:none;transition:.2s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.06);background:var(--cardBg)}
+textarea{min-height:50px;resize:vertical;line-height:1.5}
+select{cursor:pointer}
+.fr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.fr label{font-size:13px;color:var(--text2)}
+.fh{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.4}
+
+/* Buttons */
+.btn{padding:9px 22px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.btn-prim{background:linear-gradient(135deg,var(--accent),var(--accent4));color:#fff}
+.btn-prim:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,.35)}
+.btn-sec{background:var(--cardBg2);color:var(--text1);border:1px solid var(--bd1)}.btn-sec:hover{background:var(--hover)}
+.btn-sm{padding:6px 14px;font-size:11px;border-radius:7px}
+.btn-row{display:flex;gap:8px;margin-top:12px}
+
+/* Section divider */
+.section-title{font-size:13px;font-weight:700;color:var(--text2);margin:20px 0 12px;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.5px}
+.section-title:after{content:'';flex:1;height:1px;background:var(--bd2)}
+
+/* Mode tags */
+.mode-tags{display:flex;gap:8px;margin-bottom:12px}
+.mode-tag{flex:1;padding:12px;border-radius:10px;border:1px solid var(--bd2);cursor:pointer;text-align:center;transition:.2s;background:var(--cardBg2)}
+.mode-tag:hover{background:var(--hover)}
+.mode-tag.sel{border-color:var(--accent);background:rgba(99,102,241,0.04)}
+.mode-tag .mt-icon{font-size:22px;margin-bottom:4px}
+.mode-tag .mt-name{font-size:12px;font-weight:600}
+</style></head>
+<body>
+<div id="tb">
+  <div class="tb-title"><span class="tb-dot"></span>AI 智能助手配置</div>
+  <div class="tl">
+    <button class="tl-btn tl-min" onclick="bridge.minimizeWindow()"></button>
+    <button class="tl-btn tl-close" onclick="window.close()"></button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="content"></div>
+<script>
+const C={};
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2000)}
+function ts(el,v){el.classList.toggle('on',v);el.nextElementSibling.value=v?'true':'false'}
+function tg(el){ts(el,!el.classList.contains('on'))}
+
+async function init(){
+  const j=await bridge.getConfig();Object.assign(C,JSON.parse(j));
+  const m=C.theme?.mode||2;
+  if(m===1)document.body.classList.add('dark');
+  else if(m===2)document.body.classList.toggle('dark',window.matchMedia('(prefers-color-scheme:dark)').matches);
+  render();
+}
+function render(){
+  const a=C.ai||{},cu=a.custom||{},ar=C.auto_reply||{},bg=C.background||{},
+        mc=C.modes?.class||{},mf=C.modes?.free||{};
+  document.getElementById('content').innerHTML=`
+<div class="ai-card active" id="card-default">
+  <div class="ai-card-header" onclick="document.getElementById('card-default').classList.toggle('active');document.getElementById('card-custom').classList.remove('active')" style="cursor:pointer">
+    <div>
+      <div class="ai-card-title">🤖 默认 AI <span class="ai-card-badge ${a.default!==false&&a.enabled?'badge-on':'badge-off'}">${a.default!==false&&a.enabled?'已启用':'未启用'}</span></div>
+      <div class="ai-card-desc">内置免费 Key，开箱即用</div>
+    </div>
+    <div class="toggle ${a.enabled&&a.default!==false?'on':''}" id="tg-ai-on" onclick="event.stopPropagation();tg(this);updateBadge()"><input type="hidden" id="tg-ai-on-v" value="${a.enabled&&a.default!==false?'true':'false'}"></div>
+  </div>
+  <div class="ai-card-body">
+    <div class="fg"><div class="fl">重要关键词</div><input id="cfg-ai-kw" value="${a.important_keyword||'zhl重要信息'}"><div class="fh">AI 回复中出现此关键词则判定为重要消息</div></div>
+    <div class="fg"><div class="fl">系统提示词</div><textarea id="cfg-ai-sp">${a.system_prompt||''}</textarea></div>
+    <div class="fg"><div class="fl">检测模板</div><textarea id="cfg-ai-qt">${a.question_template||''}</textarea><div class="fh">使用 {keyword} 占位关键词，{background} 占位上下文</div></div>
+    <button class="btn btn-prim" onclick="saveDefault()">保存默认 AI 设置</button>
+  </div>
+</div>
+
+<div class="ai-card" id="card-custom">
+  <div class="ai-card-header" onclick="document.getElementById('card-custom').classList.toggle('active');document.getElementById('card-default').classList.remove('active')" style="cursor:pointer">
+    <div>
+      <div class="ai-card-title">🔧 自定义 AI <span class="ai-card-badge ${a.default===false&&a.enabled?'badge-on':'badge-off'}">${a.default===false&&a.enabled?'已启用':'未启用'}</span></div>
+      <div class="ai-card-desc">OpenAI 兼容接口，支持任何模型</div>
+    </div>
+    <div class="toggle ${a.enabled&&a.default===false?'on':''}" id="tg-cust-on" onclick="event.stopPropagation();tg(this);updateBadge()"><input type="hidden" id="tg-cust-on-v" value="${a.enabled&&a.default===false?'true':'false'}"></div>
+  </div>
+  <div class="ai-card-body">
+    <div class="fg"><div class="fl">API Base URL</div><input id="cfg-cust-url" value="${cu.base_url||''}" placeholder="https://api.openai.com/v1"></div>
+    <div class="fg"><div class="fl">API Key</div><input id="cfg-cust-key" type="password" value="${cu.api_key||''}" placeholder="sk-..."></div>
+    <div class="fg"><div class="fl">模型名称</div><input id="cfg-cust-model" value="${cu.model||''}" placeholder="gpt-4o-mini"></div>
+    <div class="fg"><div class="fl">自定义系统提示词</div><textarea id="cfg-cust-sp">${cu.custom_system_prompt||''}</textarea></div>
+    <button class="btn btn-prim" onclick="saveCustom()">保存自定义 AI 设置</button>
+  </div>
+</div>
+
+<div class="section-title">📋 模式设置</div>
+<div class="mode-tags">
+  <div class="mode-tag sel" id="mode-class" onclick="selMode('class')">
+    <div class="mt-icon">📖</div><div class="mt-name">${mc.name||'上课模式'}</div>
+  </div>
+  <div class="mode-tag" id="mode-free" onclick="selMode('free')">
+    <div class="mt-icon">🎮</div><div class="mt-name">${mf.name||'下课模式'}</div>
+  </div>
+</div>
+<div id="mode-editor">
+  <div class="fg"><div class="fl">名称</div><input id="cfg-mc-name" value="${mc.name||'上课模式'}"></div>
+  <div class="fg"><div class="fl">图标</div><input id="cfg-mc-icon" value="${mc.icon||'📖'}" maxlength="2"></div>
+  <div class="fg"><div class="fl">额外提示词</div><textarea id="cfg-mc-prompt">${mc.prompt||''}</textarea><div class="fh">在此模式下附加给 AI 的额外指令</div></div>
+</div>
+<div id="mode-editor-free" style="display:none">
+  <div class="fg"><div class="fl">名称</div><input id="cfg-mf-name" value="${mf.name||'下课模式'}"></div>
+  <div class="fg"><div class="fl">图标</div><input id="cfg-mf-icon" value="${mf.icon||'🎮'}" maxlength="2"></div>
+  <div class="fg"><div class="fl">额外提示词</div><textarea id="cfg-mf-prompt">${mf.prompt||''}</textarea></div>
+</div>
+<button class="btn btn-prim btn-sm" onclick="saveModes()">保存模式</button>
+
+<div class="section-title">↩ 自动回复</div>
+<div class="ai-card" style="padding:14px 18px">
+  <div class="ai-card-header" style="margin-bottom:0">
+    <div><div class="ai-card-title" style="font-size:14px">启用自动回复</div></div>
+    <div class="toggle ${ar.enabled?'on':''}" id="tg-ar-on" onclick="tg(this)"><input type="hidden" id="tg-ar-on-v" value="${ar.enabled?'true':'false'}"></div>
+  </div>
+  <div class="ai-card-body" style="${ar.enabled?'display:block;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd2)':'display:none'}">
+    <div class="fr"><label>触发关键词</label><input id="cfg-ar-kw" value="${ar.keyword||'Zhl需要回复'}" style="width:auto;flex:1"></div>
+    <div class="fg"><div class="fl">系统提示词</div><textarea id="cfg-ar-sp">${ar.system_prompt||''}</textarea></div>
+    <div class="fg"><div class="fl">判断模板</div><textarea id="cfg-ar-cq">${ar.check_question||''}</textarea></div>
+    <div class="fg"><div class="fl">回复模板</div><textarea id="cfg-ar-qt">${ar.question_template||''}</textarea></div>
+    <button class="btn btn-prim btn-sm" onclick="saveAR()">保存自动回复</button>
+  </div>
+</div>
+
+<div class="section-title">📜 背景上下文</div>
+<div class="ai-card" style="padding:14px 18px">
+  <div class="ai-card-header" style="margin-bottom:0">
+    <div><div class="ai-card-title" style="font-size:14px">启用背景上下文</div></div>
+    <div class="toggle ${bg.enabled?'on':''}" id="tg-bg-on" onclick="tg(this)"><input type="hidden" id="tg-bg-on-v" value="${bg.enabled?'true':'false'}"></div>
+  </div>
+  <div class="ai-card-body" style="${bg.enabled?'display:block;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd2)':'display:none'}">
+    <div class="fr"><label>模式</label><select id="cfg-bg-mode" style="width:auto;flex:1"><option value="conversation" ${bg.mode==='conversation'?'selected':''}>当前对话</option><option value="recent" ${bg.mode==='recent'?'selected':''}>最近所有</option></select></div>
+    <div class="fr"><label>最大条数</label><input id="cfg-bg-max" type="number" value="${bg.max_messages||20}" style="width:80px"></div>
+    <div class="fr"><label>最大字符</label><input id="cfg-bg-chars" type="number" value="${bg.max_chars||2000}" style="width:80px"></div>
+    <div class="fg"><div class="fl">后缀文本</div><input id="cfg-bg-suffix" value="${bg.suffix||''}" placeholder="附加在背景末尾的文字"></div>
+    <button class="btn btn-prim btn-sm" onclick="saveBG()">保存</button>
+  </div>
+</div>`;
+}
+
+function updateBadge(){
+  const d=document.getElementById('card-default'),c=document.getElementById('card-custom');
+  const dOn=document.getElementById('tg-ai-on').classList.contains('on');
+  const cOn=document.getElementById('tg-cust-on').classList.contains('on');
+  d.querySelector('.ai-card-badge').textContent=dOn?'已启用':'未启用';
+  d.querySelector('.ai-card-badge').className='ai-card-badge '+(dOn?'badge-on':'badge-off');
+  c.querySelector('.ai-card-badge').textContent=cOn?'已启用':'未启用';
+  c.querySelector('.ai-card-badge').className='ai-card-badge '+(cOn?'badge-on':'badge-off');
+}
+
+let curMode='class';
+function selMode(m){
+  curMode=m;
+  document.querySelectorAll('.mode-tag').forEach(t=>t.classList.toggle('sel',t.id==='mode-'+m));
+  document.getElementById('mode-editor').style.display=m==='class'?'':'none';
+  document.getElementById('mode-editor-free').style.display=m==='free'?'':'none';
+}
+
+function autoExpandAR(){
+  const ar=document.getElementById('tg-ar-on');
+  const body=document.querySelector('#content .ai-card:last-of-type .ai-card-body');
+  if(ar&&body)body.style.display=ar.classList.contains('on')?'block':'none';
+}
+function autoExpandBG(){
+  const bg=document.getElementById('tg-bg-on');
+  const body=document.querySelector('#content .ai-card:last-of-type .ai-card-body');
+  if(bg&&body)body.style.display=bg.classList.contains('on')?'block':'none';
+}
+
+async function saveDefault(){
+  const dOn=document.getElementById('tg-ai-on').classList.contains('on');
+  const cOn=document.getElementById('tg-cust-on')?.classList.contains('on');
+  await bridge.saveConfig(JSON.stringify({ai:{
+    enabled:dOn||cOn, default:true,
+    important_keyword:document.getElementById('cfg-ai-kw').value.trim()||'zhl重要信息',
+    system_prompt:document.getElementById('cfg-ai-sp').value.trim(),
+    question_template:document.getElementById('cfg-ai-qt').value.trim()
+  }}));
+  toast('默认 AI 已保存');
+}
+async function saveCustom(){
+  const dOn=document.getElementById('tg-ai-on').classList.contains('on');
+  const cOn=document.getElementById('tg-cust-on').classList.contains('on');
+  await bridge.saveConfig(JSON.stringify({ai:{
+    enabled:dOn||cOn, default:false,
+    custom:{
+      base_url:document.getElementById('cfg-cust-url').value.trim(),
+      api_key:document.getElementById('cfg-cust-key').value.trim(),
+      model:document.getElementById('cfg-cust-model').value.trim(),
+      custom_system_prompt:document.getElementById('cfg-cust-sp').value.trim()
+    }
+  }}));
+  toast('自定义 AI 已保存');
+}
+async function saveModes(){
+  await bridge.saveConfig(JSON.stringify({modes:{
+    class:{name:document.getElementById('cfg-mc-name').value.trim()||'上课模式',icon:document.getElementById('cfg-mc-icon').value.trim()||'📖',prompt:document.getElementById('cfg-mc-prompt').value.trim()},
+    free:{name:document.getElementById('cfg-mf-name').value.trim()||'下课模式',icon:document.getElementById('cfg-mf-icon').value.trim()||'🎮',prompt:document.getElementById('cfg-mf-prompt').value.trim()}
+  }}));
+  toast('模式设置已保存');
+}
+async function saveAR(){
+  await bridge.saveConfig(JSON.stringify({auto_reply:{
+    enabled:document.getElementById('tg-ar-on').classList.contains('on'),
+    keyword:document.getElementById('cfg-ar-kw').value.trim()||'Zhl需要回复',
+    system_prompt:document.getElementById('cfg-ar-sp').value.trim(),
+    check_question:document.getElementById('cfg-ar-cq').value.trim(),
+    question_template:document.getElementById('cfg-ar-qt').value.trim()
+  }}));
+  toast('自动回复已保存');
+}
+async function saveBG(){
+  await bridge.saveConfig(JSON.stringify({background:{
+    enabled:document.getElementById('tg-bg-on').classList.contains('on'),
+    mode:document.getElementById('cfg-bg-mode').value,
+    max_messages:parseInt(document.getElementById('cfg-bg-max').value)||20,
+    max_chars:parseInt(document.getElementById('cfg-bg-chars').value)||2000,
+    suffix:document.getElementById('cfg-bg-suffix').value.trim()
+  }}));
+  toast('背景上下文已保存');
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script></body></html>

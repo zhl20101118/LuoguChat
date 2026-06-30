@@ -1,0 +1,116 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><title>LuoguChat</title>
+<style>
+:root{--bg1:#EDF0F8;--bg2:#F4F6FC;--sideBg:#E4E8F8;--cardBg:#FFF;--text1:#181A2C;--text2:#565C7A;--text3:#9399B6;--bd1:#D5DBF0;--bd2:#E2E7F6;--hover:#EBF0FF;--accent:#6366F1;--accent4:#06B6D4;--red:#EF4444}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg1);color:var(--text1);overflow:hidden;height:100vh;min-width:320px;min-height:240px;display:flex;flex-direction:column;margin:0}
+*{margin:0;padding:0;box-sizing:border-box}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--bd1);border-radius:3px}
+
+/* Titlebar */
+#tb{display:flex;align-items:center;justify-content:space-between;height:34px;padding:0 10px;background:var(--sideBg);border-bottom:1px solid var(--bd1);-webkit-app-region:drag;flex-shrink:0}
+#tb .icon-row{display:flex;align-items:center;gap:10px;-webkit-app-region:no-drag}
+.tb-icon{width:28px;height:28px;border-radius:8px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.tb-icon:hover{background:var(--hover);color:var(--accent)}
+.tb-name{font-size:12px;font-weight:600;color:var(--text2);flex:1;text-align:center}
+.chat-avt{width:26px;height:26px;border-radius:13px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent4));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px}
+.chat-avt img{width:100%;height:100%;object-fit:cover}
+.tl{display:flex;gap:7px;-webkit-app-region:no-drag;align-items:center}
+.tl-btn{width:14px;height:14px;border-radius:7px;border:none;cursor:pointer;padding:0}
+.tl-close{background:#FF5F57}.tl-close:hover{background:#E0443E}
+.tl-min{background:#FFBD2E}.tl-min:hover{background:#E0A51E}
+
+/* Chat area */
+#chat{flex:1;overflow-y:auto;padding:10px 14px}
+.msg-row{display:flex;margin-bottom:2px}.msg-row.me{justify-content:flex-end}.msg-row.me .bubble{background:linear-gradient(135deg,var(--accent),#818CF8);color:#fff;border-bottom-right-radius:5px}.msg-row.other .bubble{background:var(--cardBg);border:1px solid var(--bd2);border-bottom-left-radius:5px}
+.bubble{max-width:70%;padding:8px 14px;border-radius:16px;font-size:13px;line-height:1.5;word-break:break-word;user-select:text}
+.time-div{text-align:center;padding:4px 0;font-size:11px;color:var(--text3)}
+.load-more{text-align:center;padding:6px}.load-more button{padding:4px 16px;border-radius:14px;border:1px solid var(--bd2);background:var(--cardBg);color:var(--accent);font-size:12px;cursor:pointer}
+
+/* Input */
+#input-r{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--bd2);background:var(--sideBg);flex-shrink:0}
+#input-r textarea{flex:1;resize:none;border:1px solid var(--bd2);border-radius:12px;padding:7px 10px;font-size:13px;font-family:inherit;background:var(--cardBg);color:var(--text1);outline:none;min-height:34px;max-height:120px;line-height:1.4}
+#input-r textarea:focus{border-color:var(--accent)}
+.send-btn{width:34px;height:34px;border-radius:17px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent4));color:#fff;font-size:16px;cursor:pointer;transition:.15s;flex-shrink:0}
+.send-btn:hover{transform:scale(1.05)}.send-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px}
+</style></head>
+<body>
+<div id="tb">
+  <div class="icon-row">
+    <div class="chat-avt" id="ch-avt"><span>?</span></div>
+    <button class="tb-icon" onclick="refreshMsgs()" title="刷新">↻</button>
+    <button class="tb-icon" onclick="loadMoreMsgs()" title="加载更多">↑</button>
+    <button class="tb-icon" onclick="resetSize()" title="重置大小">⊡</button>
+  </div>
+  <span class="tb-name" id="tb-name">Chat</span>
+  <div class="tl">
+    <button class="tl-btn tl-min" onclick="window.bridge.minimizeWindow()"></button>
+    <button class="tl-btn tl-close" onclick="window.close()"></button>
+  </div>
+</div>
+<div id="chat"><div class="empty">Loading...</div></div>
+<div id="input-r">
+  <textarea id="inp" placeholder="Ctrl+Enter" rows="1"></textarea>
+  <button class="send-btn" id="snd" disabled>➤</button>
+</div>
+<script>
+let uid='',name='',msgs=[],myUid='',tp=0,np=-1,nowYr=new Date().getFullYear(),nowMo=new Date().getMonth(),nowDy=new Date().getDate();
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+async function init(){
+  window.bridge.onChatWindowOpen((u,n)=>{uid=u;name=n;ac('tb-name',n||u);load(-1);loadAvatar(u)});
+  const c=JSON.parse(await window.bridge.getConfig());myUid=c.luogu?.user_id||'';
+  if(c.theme?.mode===1)document.body.style.background='#060B16';
+  const inp=document.getElementById('inp');
+  inp.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();send()}});
+  inp.addEventListener('input',()=>{document.getElementById('snd').disabled=!inp.value.trim()});
+}
+async function loadAvatar(uid){
+  const avt=document.getElementById('ch-avt');if(!avt)return;
+  avt.textContent=(name||uid).substring(0,2);
+  try{const p=await window.bridge.requestAvatar(uid);if(p){avt.innerHTML=`<img src="avatar://${uid}" onerror="this.parentElement.textContent='${(name||uid).substring(0,2)}'">`}}catch{}
+}
+function resetSize(){window.bridge.maximizeWindow();setTimeout(()=>window.bridge.maximizeWindow(),200)}
+function ac(id,v){document.getElementById(id).textContent=v}
+async function load(page){
+  try{const j=await window.bridge.getMessages(uid,page<0?-1:page,!!(!page||page<0));
+    const d=JSON.parse(j);const m=d.messages||[];
+    if(page<0){msgs=m.reverse();tp=d.totalPages||1;np=tp>1?1:-1}
+    else{const a=document.getElementById('chat');
+      const oldH=a.scrollHeight,oldTop=a.scrollTop;
+      const rev=m.reverse();const ex=new Set(msgs.map(x=>x.id));const add=rev.filter(x=>!ex.has(x.id));
+      if(!add.length)return;
+      msgs=[...add,...msgs];np=page+1;if(np>=tp)np=-1;
+      render();
+      setTimeout(()=>{ a.scrollTop=oldTop+(a.scrollHeight-oldH) },0);
+      return; // skip the second render() below
+    }
+    render();
+  }catch(e){document.getElementById('chat').innerHTML='<div class="empty">Load failed</div>'}
+}
+function render(){
+  const a=document.getElementById('chat');a.innerHTML='';
+  if(np>0){const d=document.createElement('div');d.className='load-more';d.innerHTML=`<button id="lbtn" onclick="loadMoreMsgs()">Load older messages</button>`;a.appendChild(d)}
+  let ld='',lt=0;msgs.forEach(m=>{
+    const me=String((m.sender||{}).uid)===myUid,sn=(m.sender||{}).name||'';const ct=m.content||'';const ts=m.time||0;const dt=new Date(ts*1000);
+    const dk=dt.getFullYear()+'-'+dt.getMonth()+'-'+dt.getDate();
+    const sameDay=dt.getFullYear()===nowYr&&dt.getMonth()===nowMo&&dt.getDate()===nowDy;
+    const sameYr=dt.getFullYear()===nowYr;let label='';
+    if(!sameDay||dk!==ld){label=sameYr?`${dt.getMonth()+1}/${dt.getDate()} ${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`:`${dt.getFullYear()}/${dt.getMonth()+1}/${dt.getDate()} ${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`}
+    else if(lt>0&&ts-lt>=180)label=dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    if(label){const dv=document.createElement('div');dv.className='time-div';dv.textContent=label;a.appendChild(dv)}
+    ld=dk;lt=ts;
+    const r=document.createElement('div');r.className='msg-row '+(me?'me':'other');r.dataset.mid=m.id||0;
+    const b=document.createElement('div');b.className='bubble';b.innerHTML=esc(ct);r.appendChild(b);a.appendChild(r);
+  });
+  if(np<0)a.scrollTop=a.scrollHeight;
+}
+function loadMoreMsgs(){if(np<0||np>=tp)return;const b=document.getElementById('lbtn');if(b){b.disabled=true;b.textContent='Loading...'}load(np)}
+function refreshMsgs(){msgs=[];load(-1)}
+async function send(){
+  const inp=document.getElementById('inp');const t=inp.value.trim();if(!t)return;
+  msgs.push({content:t,sender:{uid:myUid},time:Math.floor(Date.now()/1000)});render();inp.value='';document.getElementById('snd').disabled=true;
+  document.getElementById('chat').scrollTop=document.getElementById('chat').scrollHeight;
+  const r=await window.bridge.sendMessage(uid,t);if(!r.ok){msgs.pop();render();inp.value=t}
+}
+window.addEventListener('DOMContentLoaded',init);
+</script></body></html>

@@ -1,0 +1,46 @@
+{
+  "name": "luogu-chat",
+  "version": "8.1.0",
+  "description": "LuoguChat v8.1 — Premium Electron Desktop Chat",
+  "author": "Zhl2010",
+  "main": "main.js",
+  "scripts": {
+    "start": "set ELECTRON_RUN_AS_NODE=&& set NODE_OPTIONS=&& electron .",
+    "build": "set ELECTRON_RUN_AS_NODE=&& set NODE_OPTIONS=&& electron-builder --win"
+  },
+  "build": {
+    "appId": "com.luogu.chat",
+    "productName": "LuoguChat",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "chat.html",
+      "settings.html",
+      "ai.html",
+      "notify.html",
+      "style.css",
+      "package.json",
+      "worker.js",
+      "zhl_super_allow.txt",
+      "data/**/*",
+      "avatars/**/*",
+      "sound/**/*"
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "icon.ico"
+    }
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.6",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

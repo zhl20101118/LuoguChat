@@ -1,0 +1,733 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>LuoguChat v8.1</title><link rel="stylesheet" href="style.css">
+</head><body>
+
+<!-- ═══ TITLEBAR ═══ -->
+<div id="titlebar">
+  <div class="tb-left"><div class="tb-logo"></div><span class="tb-title"><b>LuoguChat</b> v8.1</span></div>
+  <div id="traffic-lights">
+    <button class="tl-btn tl-min" title="最小化" onclick="bridge.minimizeWindow()"></button>
+    <button class="tl-btn tl-max" title="最大化" onclick="bridge.maximizeWindow()"></button>
+    <button class="tl-btn tl-close" title="关闭" onclick="bridge.closeWindow()"></button>
+  </div>
+</div>
+<div id="toast"></div>
+<div class="overlay" id="generic-overlay"><div class="panel" id="generic-panel"><div class="panel-header"><h3 id="generic-title"></h3><button class="btn-icon" onclick="closeGenericPanel()">×</button></div><div class="panel-body" id="generic-body"></div></div></div>
+<div class="ctx-popup" id="ctx-popup" style="display:none"></div>
+
+<!-- ═══ APP CONTAINER ═══ -->
+<div id="app-container">
+
+<!-- ══ SIDEBAR ══ -->
+<div id="sidebar">
+  <div class="side-avatar-wrap">
+    <div class="side-avatar" id="side-avatar" onclick="toggleSidebar()" title="点击展开/折叠"><span id="side-avatar-text">?</span></div>
+    <div class="side-status" id="side-status"></div>
+  </div>
+  <button class="side-btn" id="sb-list" onclick="toggleMidPanel()" title="消息列表"><span>💬</span><span class="sbtn-label">消息列表</span></button>
+  <div id="unread-badge" style="font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:1px 7px;min-width:18px;text-align:center;display:none;line-height:16px;margin:-4px 0 0 0"></div>
+  <button class="side-btn" id="sb-refresh" onclick="doRefreshChatList()" title="刷新"><span>↻</span><span class="sbtn-label">刷新</span></button>
+  <div class="side-spacer"></div>
+  <div id="sidebar-extras" style="width:100%;display:flex;flex-direction:column;gap:6px;align-items:center;padding:0 4px">
+    <input id="direct-uid" type="text" placeholder="UID..." style="width:100%;padding:5px 8px;border:1px solid var(--bd2);border-radius:8px;font-size:11px;font-family:var(--font);background:var(--cardBg);color:var(--text1);outline:none;display:none" onkeydown="if(event.key==='Enter'){const v=this.value.trim();if(v){selUser(v,'UID:'+v,'');this.value=''}}">
+    <div id="mode-badge" onclick="cycleMode()">📖</div>
+  </div>
+  <button class="side-btn" id="sb-dark" onclick="toggleDark()" title="主题切换"><span id="sb-dark-icon">🌙</span><span class="sbtn-label">主题切换</span></button>
+  <button class="side-btn" id="sb-settings" onclick="openSettingsWindow()" title="设置"><span>⚙</span><span class="sbtn-label">设置</span></button>
+  <button class="side-btn" id="sb-ai" onclick="openAISettingsWindow()" title="AI 配置"><span>⌬</span><span class="sbtn-label">AI 配置</span></button>
+</div>
+
+<!-- ══ MID PANEL ══ -->
+<div id="mid-panel">
+  <div class="mid-header"><h2>消息</h2><div class="mh-actions"><button class="mh-btn" onclick="doRefreshChatList()" title="刷新">↻</button></div></div>
+  <div id="chat-list-wrap"></div>
+</div>
+
+<!-- ══ RIGHT PANEL ══ -->
+<div id="right-panel">
+  <div class="chat-header">
+    <div class="ch-left">
+      <div class="ch-avatar" id="ch-avatar"><span>?</span></div>
+      <div class="ch-info">
+        <div class="ch-name" id="ch-name">选择一个对话</div>
+        <div class="ch-meta"><span class="ch-dot offline" id="ch-dot"></span><span class="ch-status" id="ch-uid"></span></div>
+      </div>
+    </div>
+    <div class="ch-actions">
+      <button class="btn-icon" id="btn-msg-refresh" onclick="refreshCurMsgs()" title="Refresh" style="display:none">↻</button>
+      <button class="btn-icon" id="btn-chat-popout" onclick="openStandaloneChat()" title="Open in new window" style="display:none">↗</button>
+      <button class="btn-icon" id="btn-msg-search" onclick="toggleMsgSearch()" title="Search messages" style="display:none">⌕</button>
+      <button class="btn-icon" onclick="openGlobalSearch()" title="全局搜索">⌕</button>
+      <span id="loading-indicator" style="display:none;font-size:12px;color:var(--accent);font-weight:600;margin-left:8px">请求中...</span>
+      <button class="btn-icon" onclick="toggleMidPanel()" title="List">☰</button>
+      <button class="btn-icon" onclick="toggleRightPanel()" title="记录">📋</button></div>
+  </div>
+  <div id="msg-area"><div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">选择一个联系人</div></div></div>
+  <div id="msg-search-bar" style="padding:4px 16px;display:none"><input id="msg-search-input" type="text" placeholder="Search messages..." style="width:100%;padding:6px 12px;border:1px solid var(--bd2);border-radius:8px;font-size:12px;font-family:var(--font);background:var(--cardBg);color:var(--text1);outline:none;display:none" oninput="filterMsgSearch()" onkeydown="if(event.key==='Escape'){this.style.display='none';this.value='';renderMsgs()}"></div>
+  <div id="input-area" style="display:none">
+    <div class="resize-handle" id="resize-handle"></div>
+    <div class="input-row">
+      <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
+      <button class="send-btn" id="send-btn" onclick="doSendMsg()" disabled>➤</button>
+    </div>
+    <div class="input-footer"><span class="char-count" id="char-count">0</span></div>
+  </div>
+</div>
+
+<!-- ══ RIGHT SIDEBAR ══ -->
+<div id="right-sidebar" style="display:none">
+  <div class="rs-header"><h3>⚡ 快捷操作</h3><button class="btn-icon" onclick="toggleRightPanel()">×</button></div>
+  <div class="rs-section">
+    <div class="rs-title">🔍 搜索</div>
+    <button class="rs-btn" onclick="openGlobalSearch();toggleRightPanel()">全局搜索</button>
+    <button class="rs-btn" onclick="toggleMsgSearch()">搜索当前对话</button>
+  </div>
+  <div class="rs-section">
+    <div class="rs-title">🔄 操作</div>
+    <button class="rs-btn" onclick="refreshCurMsgs()">刷新当前对话</button>
+    <button class="rs-btn" onclick="doRefreshChatList()">刷新消息列表</button>
+    <button class="rs-btn" onclick="markAllRead()">全部标为已读</button>
+  </div>
+  <div class="rs-section">
+    <div class="rs-title">📊 状态</div>
+    <div id="rs-status" style="font-size:12px;color:var(--text3)">WS: <span id="rs-ws">-</span><br>服务器: <span id="rs-sv">-</span></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  LuoguChat v8.1 — Premium Desktop Chat
+// ═══════════════════════════════════════════
+const S={myUid:'',myName:'',wsStat:'offline',chatList:[],curUid:'',curName:'',curColor:'',msgs:[],hasMore:!1,totalPages:0,nextLoadPage:-1,avatarCache:{},currentMode:'class',config:null,inputH:140,_loadingUid:null,_pinSet:new Set};
+let toastTimer=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2200)}
+// ═══ HELPERS ═══
+let _loading=0;
+function showLoading(){_loading++;const el=document.getElementById('loading-indicator');if(el){el.style.display='';el.textContent='请求中...'}}
+function hideLoading(){_loading=Math.max(0,_loading-1);if(!_loading){const el=document.getElementById('loading-indicator');if(el)el.style.display='none'}}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function ac(k,v){document.getElementById(k)&&(document.getElementById(k).textContent=v)}
+function ts(w,h){document.getElementById(w)&&(document.getElementById(w).style.display=h?'':'none')}
+function toggleSwitch(el,vid){el.classList.toggle('on');document.getElementById(vid).value=el.classList.contains('on')?'true':'false'}
+
+// ═══ INIT ═══
+async function init(){
+  window.bridge.onNewMessage((sUid,content,sName,myUid,ts)=>{S.myUid=myUid;onWSMessage(sUid,content,sName,ts)});
+  window.bridge.onImportantMessage((sUid,content,sName,tip)=>{toast('📨 '+sName+': '+content.substring(0,30)+'...');doRefreshChatList()});
+  window.bridge.onWsStatus(s=>{S.wsStat=s;updateWSStatus()});
+  window.bridge.onAvatarReady((uid,path)=>{const url='avatar://'+uid;S.avatarCache[uid]=url;console.log('[AVATAR] ready uid='+uid+' url='+url);refreshAvatars(uid)});
+  window.bridge.onAutoReplyDone((uid,content,reply)=>{if(uid===S.curUid)loadMsgs(S.curUid,-1,!0)});
+  window.bridge.onReplySent(ok=>{if(!ok)toast('发送失败');else loadMsgs(S.curUid,-1,!0)});
+  window.bridge.onServerStatus(j=>{try{const d=JSON.parse(j);ac('sv-rem',d.remaining);ac('sv-total',d.total)}catch{}});
+  window.bridge.onAutoLogin(uid=>{S.myUid=uid;updateMyInfo();doRefreshChatList()});
+  window.bridge.onConfigUpdated(()=>{window.bridge.getConfig().then(j=>{S.config=JSON.parse(j);applyCfg();updateMyInfo()})});
+  // Popup actions
+  window.bridge.onFocusChatUser((uid,name)=>{selUser(uid,name);window.bridge.maximizeWindow()});
+  window.bridge.onOpenChatWinFromPopup((uid,name)=>{window.bridge.openChatWindow(uid,name)});
+
+  const cfgJson=await window.bridge.getConfig();
+  S.config=JSON.parse(cfgJson);applyCfg();
+  // Step 1: show cached chat list immediately for speed
+  try{const cj=await window.bridge.getChatList();const d=JSON.parse(cj);console.log('[INIT] cached chat list loaded:',d.length,'items');processChatList(d)}catch(e){console.log('[INIT] cached chat list error:',e)}
+  // Step 2: auto login + refresh server
+  const ar=await window.bridge.autoLogin();
+  if(ar&&ar.ok){S.myUid=ar.uid;updateMyInfo();doRefreshChatList()}
+  try{const sj=await window.bridge.syncNow();const sd=JSON.parse(sj);ac('sv-rem',sd.remaining||50);ac('sv-total',sd.total||50)}catch{}
+  // Pre-warm message cache for top conversations (background, no loading indicator)
+  setTimeout(()=>{
+    const top=Math.min(5,S.chatList.length);
+    for(let i=0;i<top;i++){const u=S.chatList[i]._u;if(u)window.bridge.getMessages(u,-1,!0).catch(()=>{})}
+  },3000);
+  setupResizeHandle();
+  // Global update function for send button
+  window.updateSendBtn = function(){
+    const inp = document.getElementById('msg-input');
+    document.getElementById('send-btn').disabled = !S.curUid || !inp || !inp.value.trim();
+  };
+  const msgInput = document.getElementById('msg-input');
+  msgInput.addEventListener('input', window.updateSendBtn);
+  msgInput.addEventListener('keydown',e=>{ if(e.ctrlKey&&e.key==='Enter'){ e.preventDefault(); doSendMsg(); } });
+  // Auto-load on scroll to top
+  document.getElementById('msg-area').addEventListener('scroll',()=>{
+    const a=document.getElementById('msg-area');
+    if(a.scrollTop<20&&S.nextLoadPage>0&&S.nextLoadPage<S.totalPages){
+      loadMoreMsgs();
+    }
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeGenericPanel();toggleSearchPanel(!1)}});
+  // Window snap shortcuts (Win+Arrow handled by OS, these are fallback)
+  document.addEventListener('keydown',e=>{
+    if(!e.metaKey&&!e.ctrlKey)return; // Win key = metaKey on most systems
+    if(e.key==='ArrowLeft'){e.preventDefault();window.bridge.snapLeft()}
+    if(e.key==='ArrowRight'){e.preventDefault();window.bridge.snapRight()}
+    if(e.key==='ArrowUp'){e.preventDefault();window.bridge.snapUp()}
+    if(e.key==='ArrowDown'){e.preventDefault();window.bridge.snapDown()}
+  });
+  // Double-click titlebar to maximize
+  document.getElementById('titlebar').addEventListener('dblclick',e=>{
+    if(e.target.closest('#traffic-lights'))return;
+    window.bridge.maximizeWindow();
+  });
+}
+function applyCfg(){
+  const c=S.config;S.myUid=c.luogu?.user_id||'';S.myName='';
+  S._pinSet=new Set(c.pins||[]);
+  S.currentMode='class';S.inputH=c.theme?.input_height||140;
+  const m=c.theme?.mode||2;document.body.classList.toggle('dark',m===1);
+  if(m===2)document.body.classList.toggle('dark',window.matchMedia('(prefers-color-scheme:dark)').matches);
+  document.documentElement.style.setProperty('--accent',c.theme?.accent||'#6366F1');
+  document.documentElement.style.setProperty('--accent2','#818CF8');
+}
+function updateMyInfo(){
+  ac('side-avatar-text',S.myName?S.myName.substring(0,2):'?');
+  if(S.myUid){const au='avatar://'+S.myUid;document.getElementById('side-avatar').innerHTML=`<img src="${au}" onerror="this.parentElement.innerHTML='<span>${(S.myName||S.myUid).substring(0,2)}</span>'">`}
+  updateWSStatus();if(S.myUid)window.bridge.requestAvatar(S.myUid).then(p=>{if(p){const url='avatar://'+S.myUid;S.avatarCache[S.myUid]=url;refreshAvatars(S.myUid)}});
+}
+function updateWSStatus(){
+  const sd=document.getElementById('side-status'),cd=document.getElementById('ch-dot');
+  const st=document.getElementById('ch-status');
+  if(S.wsStat==='connected'){sd.className='side-status online';if(cd)cd.className='ch-dot online';if(st)st.textContent='在线'}
+  else if(S.wsStat==='error'){sd.className='side-status error';if(cd)cd.className='ch-dot offline';if(st)st.textContent='连接错误'}
+  else{sd.className='side-status offline';if(cd)cd.className='ch-dot offline';if(st)st.textContent='离线'}
+  updateRightSidebar();
+}
+
+// ═══ SIDEBAR ═══
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('expanded')}
+function toggleMidPanel(){document.getElementById('mid-panel').classList.toggle('collapsed')}
+function cycleMode(){
+  S.currentMode=S.currentMode==='class'?'free':'class';
+  const mc=S.config?.modes||{},m=S.currentMode==='class'?mc.class||{}:mc.free||{};
+  const b=document.getElementById('mode-badge');
+  b.textContent=m.icon||(S.currentMode==='class'?'📖':'🎮');
+  b.title=m.name||(S.currentMode==='class'?'上课模式':'下课模式');
+  b.classList.toggle('active',S.currentMode==='class');
+  // Send current mode to main process for AI
+  window.bridge.setCurrentMode(S.currentMode);
+}
+function toggleDark(){
+  const isDark=!document.body.classList.contains('dark');
+  document.body.classList.toggle('dark',isDark);
+  document.getElementById('sb-dark-icon').textContent=isDark?'☀':'🌙';
+  if(S.config){S.config.theme.mode=isDark?1:0;window.bridge.saveConfig(JSON.stringify({theme:{mode:isDark?1:0}}))}
+}
+
+// ═══ RIGHT SIDEBAR ═══
+function toggleRightPanel(){
+  const p=document.getElementById('right-sidebar');
+  p.style.display=p.style.display==='none'?'':'none';
+  if(p.style.display!=='none')updateRightSidebar();
+}
+function updateRightSidebar(){
+  document.getElementById('rs-ws').textContent=S.wsStat||'-';
+  document.getElementById('rs-sv').textContent=(document.getElementById('sv-rem')?.textContent||'')+'/'+(document.getElementById('sv-total')?.textContent||'');
+}
+function markAllRead(){
+  S.chatList.forEach(c=>{if(c.status===1)c.status=0});
+  renderChatList();
+  toast('全部已读');
+}
+function openSettingsWindow(){window.bridge.openSettingsWindow()}
+function openAISettingsWindow(){window.bridge.openAISettingsWindow()}
+
+// ═══ CHAT LIST ═══
+async function doRefreshChatList(){
+  try{const j=await window.bridge.refreshChatList();const d=JSON.parse(j);if(d&&d.length){processChatList(d)}}
+  catch{/* keep existing list if refresh fails */}
+  const uids=S.chatList.map(c=>c._u);if(uids.length)window.bridge.prefetchAvatars(JSON.stringify(uids));
+}
+function processChatList(data){
+  if(!Array.isArray(data)||!data.length)return;
+  data.forEach((it,i)=>{let u=String(it.uid||(it.user?.uid)||'');if(!u)u='u_'+i;it._u=u});
+  data.sort((a,b)=>{const ap=S._pinSet.has(a._u),bp=S._pinSet.has(b._u);if(ap&&!bp)return -1;if(!ap&&bp)return 1;return(b.time||0)-(a.time||0)});
+  S.chatList=data;renderChatList();
+}
+function renderChatList(){
+  const w=document.getElementById('chat-list-wrap');w.innerHTML='';
+  S.chatList.forEach(c=>{
+    const d=document.createElement('div');d.className='chat-item'+(c._u===S.curUid?' active':'');
+    d.dataset.uid=c._u;d.dataset.name=c.name||'';d.onclick=()=>selUser(c._u,c.name||'',c.color||'');
+    d.oncontextmenu=e=>{e.preventDefault();showChatCtxMenu(e,c._u,c.name||'')};
+    if(S._pinSet.has(c._u)){const pi=document.createElement('div');pi.style.cssText='position:absolute;top:2px;right:6px;font-size:10px';pi.textContent='📌';d.appendChild(pi)}
+    const av=document.createElement('div');av.className='ci-avt';av.id='ci-avt-'+c._u;
+    const cached=S.avatarCache[c._u];
+    const cdnUrl=c.avatar||'';
+    const fallback=`<span>${(c.name||c._u).substring(0,2)}</span>`;
+    if(cached){av.innerHTML=`<img src="${cached}" onerror="this.parentElement.innerHTML='${fallback}'">`}
+    else if(cdnUrl){av.innerHTML=`<img src="${cdnUrl}" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='${fallback}'">`}
+    else av.innerHTML=fallback;
+    const inf=document.createElement('div');inf.className='ci-info';
+    const tm=c.time?new Date(c.time*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}):'';
+    inf.innerHTML=`<div class="ci-top"><span class="ci-name" style="color:${nameColor(c.color)}">${c.name||c._u}</span><span class="ci-time">${tm}</span></div><div class="ci-msg">${(c.content||'').substring(0,40)}</div>`;
+    d.appendChild(av);d.appendChild(inf);
+    if(c.status===1){const b=document.createElement('div');b.className='ci-badge';d.appendChild(b)}
+    w.appendChild(d);
+  });
+  // Update unread count badge
+  const unreadCt=S.chatList.filter(c=>c.status===1).length;
+  const ub=document.getElementById('unread-badge');
+  if(unreadCt>0){ub.textContent=unreadCt>99?'99+':unreadCt;ub.style.display=''}
+  else ub.style.display='none';
+  if(!S.chatList.length)w.innerHTML='<div style="text-align:center;padding:50px 20px;color:var(--text3);font-size:13px">No messages</div>';
+}
+function nameColor(c){const m={Red:'#FF3B30',Orange:'#FF9500',Green:'#10B981',Blue:'#3B82F6',Brown:'#A2845E',Purple:'#8B5CF6',Gray:'#8E8E93'};return m[c]||'var(--text1)'}
+
+// Context menu for chat list
+function showChatCtxMenu(e,uid,name){
+  const p=document.getElementById('ctx-popup');
+  p.innerHTML='';
+  p.style.display='block';p.style.left=e.clientX+'px';p.style.top=e.clientY+'px';
+  const isPin=S._pinSet.has(uid);
+  const add=(txt,fn)=>{const b=document.createElement('button');b.textContent=txt;b.onclick=()=>{fn();p.style.display='none'};p.appendChild(b)};
+  add(isPin?'📌 取消置顶':'📌 置顶',()=>togglePin(uid));
+  document.addEventListener('click',function cc(){p.style.display='none';document.removeEventListener('click',cc)},{once:!0});
+}
+function togglePin(uid){
+  if(S._pinSet.has(uid))S._pinSet.delete(uid);else S._pinSet.add(uid);
+  renderChatList();window.bridge.saveConfig(JSON.stringify({pins:[...S._pinSet]}));
+}
+function closeGenericPanel(){document.getElementById('generic-overlay').classList.remove('show');document.getElementById('generic-body').innerHTML=''}
+
+// ═══ SELECT USER ═══
+async function selUser(uid,name,color){
+  if(S._loadingUid===uid)return; // prevent duplicate loads
+  S._loadingUid=uid;
+  const same=uid===S.curUid;
+  S.curUid=uid;S.curName=name||('user'+uid);S.curColor=color||'';
+  // Mark as read
+  const wasUnread=S.chatList.find(c=>c._u===uid&&c.status===1);
+  if(wasUnread){wasUnread.status=0;renderChatList()}
+  ac('ch-name',S.curName);document.getElementById('ch-uid').textContent='UID: '+uid;
+  ts('input-area',!0);
+  document.getElementById('btn-msg-refresh').style.display='';
+  document.getElementById('btn-chat-popout').style.display='';
+  document.getElementById('btn-msg-search').style.display='';
+  // ── Cache first, instant display ──
+  const cached=await loadMsgsFromCache(uid);
+  if(cached&&cached.length){
+    S.msgs=cached;S.totalPages=S._cachedTotalPages||1;
+    S.nextLoadPage=S.totalPages>1?1:-1;S.hasMore=S.nextLoadPage>0;
+    renderMsgs();
+    document.getElementById('msg-area').scrollTop=document.getElementById('msg-area').scrollHeight;
+  }else{
+    document.getElementById('msg-area').innerHTML='<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">加载中...</div></div>';
+    S.msgs=[];S.hasMore=!1;
+  }
+  document.getElementById('msg-input').value='';document.getElementById('msg-input').disabled=!1;
+  updateSendBtn();
+  document.querySelectorAll('.chat-item').forEach(el=>el.classList.toggle('active',el.dataset.uid===uid));
+  const ca=document.getElementById('ch-avatar');
+  if(S.avatarCache[uid])ca.innerHTML=`<img src="${S.avatarCache[uid]}" onerror="this.innerHTML='<span>${S.curName.substring(0,2)}</span>'">`;else ca.innerHTML=`<span>${S.curName.substring(0,2)}</span>`;
+  window.bridge.requestAvatar(uid).then(p=>{if(p){const url='avatar://'+uid;S.avatarCache[uid]=url;refreshAvatars(uid)}});
+  // ── Background delta refresh — append only, no DOM rebuild ──
+  loadMsgsDelta(uid);
+  document.getElementById('msg-input').focus();
+  S._loadingUid=null;
+}
+// Pure cache load — no network, returns msgs array or null
+async function loadMsgsFromCache(uid){
+  try{const j=await window.bridge.getMessages(uid,-1,!1);
+    const d=JSON.parse(j||'{}');const msgs=(d.messages||[]).reverse();
+    if(msgs.length){S._cachedTotalPages=d.totalPages||1;return msgs}
+  }catch(e){console.log('cache load err',e)}
+  return null;
+}
+// Background delta refresh — full replace from server
+async function loadMsgsDelta(uid){
+  try{const j=await window.bridge.getMessages(uid,-1,!0);
+    const d=JSON.parse(j||'{}');const msgs=(d.messages||[]).reverse();
+    if(!msgs.length)return;
+    S.msgs=msgs;
+    S.totalPages=d.totalPages||1;S.nextLoadPage=S.totalPages>1?1:-1;S.hasMore=S.nextLoadPage>0;
+    renderMsgs();
+    // Force scroll to bottom after layout completes
+    setTimeout(()=>{const a=document.getElementById('msg-area');a.scrollTop=a.scrollHeight},50);
+  }catch(e){console.log('delta load err',e)}
+  finally{hideLoading()}
+}
+// Incremental append — only add new message nodes, no DOM rebuild
+function appendNewMessages(newMsgs){
+  const a=document.getElementById('msg-area');
+  const wasBottom=a.scrollHeight-a.scrollTop-a.clientHeight<80;
+  // Remove old load-more button (will re-add if needed)
+  const oldBtn=a.querySelector('.load-more');
+  if(oldBtn)oldBtn.remove();
+  // Add load-more at top if needed
+  if(S.nextLoadPage>0&&S.nextLoadPage<(S.totalPages||999)){
+    const d=document.createElement('div');d.className='load-more';
+    d.innerHTML=`<button id="load-btn" onclick="loadMoreMsgs()">Load older messages</button>`;
+    a.appendChild(d);
+  }
+  // Reuse render logic for consistency — extract the per-message builder
+  appendMsgNodes(a,newMsgs,S.msgs.length-newMsgs.length);
+  if(wasBottom)setTimeout(()=>{a.scrollTop=a.scrollHeight},50);
+}
+// Helper: append message nodes to an element (used by both renderMsgs and appendNewMessages)
+function appendMsgNodes(a,msgs,startIdx){
+  const now=new Date(),nowDay=now.getDate(),nowMon=now.getMonth(),nowYr=now.getFullYear();
+  const tm=S.config?.theme?.timeMode||0,tg=(S.config?.theme?.timeGap||3)*60;
+  // Get last message context from full S.msgs
+  let lastDateKey='',lastTs=0;
+  if(startIdx>0){
+    const prev=S.msgs[startIdx-1];
+    const pdt=new Date((prev.time||0)*1000);
+    lastDateKey=`${pdt.getFullYear()}-${pdt.getMonth()}-${pdt.getDate()}`;
+    lastTs=prev.time||0;
+  }
+  msgs.forEach(m=>{
+    const su=String((m.sender||{}).uid||m.from_uid||'');const sn=(m.sender||{}).name||'';const im=su===S.myUid;
+    const ct=m.content||'';const ts=m.time||0;const dt=new Date(ts*1000);
+    const dk=`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+    let label='';
+    const sameDay=dt.getFullYear()===nowYr&&dt.getMonth()===nowMon&&dt.getDate()===nowDay;
+    const sameYear=dt.getFullYear()===nowYr;
+    if(!sameDay||dk!==lastDateKey){
+      if(sameYear)label=`${dt.getMonth()+1}/${dt.getDate()} ${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`;
+      else label=`${dt.getFullYear()}/${dt.getMonth()+1}/${dt.getDate()} ${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`;
+    }else if(tm===0||(lastTs>0&&ts-lastTs>=tg)){
+      label=dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    }
+    if(label){const dv=document.createElement('div');dv.className='msg-time-divider';dv.innerHTML=`<span>${label}</span>`;a.appendChild(dv)}
+    lastDateKey=dk;lastTs=ts;
+    const r=document.createElement('div');r.className='msg-row '+(im?'me':'other');r.dataset.msgId=m.id||0;
+    if(!im){const av=document.createElement('div');av.className='msg-avatar';av.id='ma-'+su;const f2=`<span>${sn.substring(0,2)}</span>`;if(S.avatarCache[su])av.innerHTML=`<img src="${S.avatarCache[su]}" onerror="this.innerHTML='${f2}'">`;else av.innerHTML=`<span>${sn.substring(0,2)}</span>`;r.appendChild(av)}
+    else{const ph=document.createElement('div');ph.className='msg-avatar-placeholder';r.appendChild(ph)}
+    const b=document.createElement('div');b.className='msg-bubble';
+    b.innerHTML=`<div>${esc(ct)}</div>`;
+    const ctx=document.createElement('div');ctx.className='msg-ctx';
+    ctx.innerHTML=`<button class="ctx-copy" onclick="event.stopPropagation();copyMsg('${ct.replace(/'/g,"\\'").replace(/\n/g,'\\n')}')">📋</button>${m.id?`<button class="ctx-del" onclick="event.stopPropagation();delMsg(${m.id})">🗑</button>`:''}`;
+    b.appendChild(ctx);r.appendChild(b);
+    if(im){const ph=document.createElement('div');ph.className='msg-avatar-placeholder';r.appendChild(ph)}
+    else{const ph=document.createElement('div');ph.className='msg-avatar-placeholder';r.appendChild(ph)}
+    a.appendChild(r);
+  });
+}
+// Server fetch + merge: used by refresh and loadMoreMsgs
+async function loadMsgs(uid,page,force){
+  try{
+    showLoading();
+    const j=await window.bridge.getMessages(uid,page,!!force);
+    const d=JSON.parse(j);const msgs=d.messages||[];
+    const area=document.getElementById('msg-area');
+    if(page<0){
+      // Refresh: full replace with server data
+      if(!msgs.length)return;
+      const rev=msgs.reverse();
+      S.msgs=rev;S.totalPages=d.totalPages||1;S.nextLoadPage=S.totalPages>1?1:-1;S.hasMore=S.nextLoadPage>0;
+      renderMsgs();
+      area.scrollTop=area.scrollHeight;
+    }else{
+      // Load more: batch-insert older messages at DOM top via DocumentFragment
+      const rev=msgs.reverse();if(!rev.length)return;
+      const existingIds=new Set(S.msgs.map(m=>m.id));
+      const toAdd=rev.filter(m=>!existingIds.has(m.id));
+      if(!toAdd.length)return;
+      const oldH=area.scrollHeight,oldTop=area.scrollTop;
+      // Build all new nodes in a DocumentFragment (not DOM-attached → no reflow)
+      const frag=document.createDocumentFragment();
+      appendMsgNodes(frag,toAdd,0);
+      // Find insertion point
+      const loadBtn=area.querySelector('.load-more');
+      const refNode=(loadBtn&&loadBtn.nextSibling)?loadBtn.nextSibling:null;
+      // Single batch insert — DOM changes once
+      if(refNode)area.insertBefore(frag,refNode);
+      else area.appendChild(frag);
+      // Update data
+      S.msgs=[...toAdd,...S.msgs];S.msgs.sort((a,b)=>(a.time||0)-(b.time||0));
+      S.nextLoadPage=page+1;if(S.nextLoadPage>=S.totalPages)S.nextLoadPage=-1;
+      S.hasMore=S.nextLoadPage>0&&S.nextLoadPage<S.totalPages;
+      if(loadBtn){
+        if(S.hasMore){const b=loadBtn.querySelector('button');if(b){b.disabled=!1;b.textContent='Load older messages'}}
+        else loadBtn.remove();
+      }
+      // Precise scroll: delta = actual DOM height added
+      area.scrollTop=oldTop+(area.scrollHeight-oldH);
+    }
+  }catch(e){console.error('loadMsgs err',e)}
+  finally{hideLoading()}
+}
+function renderMsgs(){
+  const a=document.getElementById('msg-area');const wasBottom=a.scrollHeight-a.scrollTop-a.clientHeight<80;
+  a.innerHTML='';
+  if(S.nextLoadPage>0&&S.nextLoadPage<(S.totalPages||999)){
+    const d=document.createElement('div');d.className='load-more';
+    d.innerHTML=`<button id="load-btn" onclick="loadMoreMsgs()">Load older messages</button>`;
+    a.appendChild(d);
+  }
+  appendMsgNodes(a,S.msgs,0);
+  if(wasBottom)a.scrollTop=a.scrollHeight;
+}
+function refreshCurMsgs(){
+  if(!S.curUid)return;const b=document.getElementById('btn-msg-refresh');
+  if(b)b.style.animation='spin .6s linear infinite';
+  loadMsgs(S.curUid,-1,!0).finally(()=>{if(b)b.style.animation=''});
+}
+function loadMoreMsgs(){
+  if(!S.curUid||S.nextLoadPage<0||S.nextLoadPage>=S.totalPages)return;
+  const page=S.nextLoadPage;
+  const b=document.getElementById('load-btn');if(b){b.disabled=!0;b.textContent='Loading...'}
+  loadMsgs(S.curUid,page,!1).then(()=>{
+    if(b){b.disabled=!1;b.textContent='Load older messages'}
+  });
+}
+function copyMsg(t){window.bridge.copyText(t);toast('copied')}
+function delMsg(id){if(!id)return;if(!confirm('Delete?'))return;window.bridge.deleteMessage(id).then(r=>{if(r.ok){toast('deleted');clearMsgCache(S.curUid);loadMsgs(S.curUid,-1,!0)}})}
+function clearMsgCache(uid){/* server refresh will overwrite cache */}
+
+function openStandaloneChat(){
+  if(!S.curUid)return;
+  window.bridge.openChatWindow(S.curUid,S.curName);
+}
+
+function toggleMsgSearch(){
+  const bar=document.getElementById('msg-search-bar');
+  if(!bar)return;
+  if(bar.style.display==='none'||!bar.style.display){bar.style.display='';document.getElementById('msg-search-input').focus()}
+  else{bar.style.display='none';document.getElementById('msg-search-input').value='';renderMsgs()}
+}
+
+function openGlobalSearch(){
+  const ov=document.getElementById('generic-overlay'),t=document.getElementById('generic-title'),b=document.getElementById('generic-body');
+  t.innerHTML='Global Search';b.innerHTML=`
+<div class="panel-tabs">
+  <button class="panel-tab active" onclick="switchGlobalSearchTab('gs-user',this)">User</button>
+  <button class="panel-tab" onclick="switchGlobalSearchTab('gs-msg',this)">Messages</button>
+</div>
+<div id="gs-user">
+  <div style="display:flex;gap:8px;margin-bottom:8px"><input id="gs-user-input" type="text" placeholder="Search Luogu user..." style="flex:1"><button class="btn btn-primary btn-sm" onclick="doGlobalUserSearch()">Search</button></div>
+  <div id="gs-user-results"></div>
+</div>
+<div id="gs-msg" style="display:none">
+  <div style="display:flex;gap:8px;margin-bottom:8px"><input id="gs-msg-input" type="text" placeholder="Search all messages..." style="flex:1"><button class="btn btn-primary btn-sm" onclick="doGlobalMsgSearch()">Search</button></div>
+  <div id="gs-msg-results"></div>
+</div>`;
+  document.getElementById('gs-user-input').addEventListener('keydown',e=>{if(e.key==='Enter')doGlobalUserSearch()});
+  document.getElementById('gs-msg-input').addEventListener('keydown',e=>{if(e.key==='Enter')doGlobalMsgSearch()});
+  ov.classList.add('show');
+}
+
+function switchGlobalSearchTab(id,btn){
+  document.querySelectorAll('#generic-body .panel-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['gs-user','gs-msg'].forEach(i=>{const el=document.getElementById(i);if(el)el.style.display=i===id?'':'none'});
+}
+
+async function doGlobalUserSearch(){
+  const kw=document.getElementById('gs-user-input').value.trim();if(!kw)return;
+  const r=document.getElementById('gs-user-results');r.innerHTML='Searching...';
+  const j=await window.bridge.searchUsers(kw);const users=JSON.parse(j);r.innerHTML='';
+  if(!users.length){r.innerHTML='<div style="color:var(--text3);padding:16px">No users found</div>';return}
+  users.forEach(u=>{const d=document.createElement('div');d.className='sr-item';d.onclick=()=>{selUser(String(u.uid),u.name||'',u.color||'');closeGenericPanel()};const uid=String(u.uid);d.innerHTML=`<div class="sri-avt">${S.avatarCache[uid]?`<img src="${S.avatarCache[uid]}">`:`<span>${(u.name||uid).substring(0,2)}</span>`}</div><div class="sri-info"><div class="sri-name">${u.name||uid}</div><div class="sri-uid">UID:${uid}</div></div>`;r.appendChild(d)});
+}
+
+let _gsCancel=null;
+async function doGlobalMsgSearch(){
+  const kw=document.getElementById('gs-msg-input').value.trim().toLowerCase();if(!kw)return;
+  const r=document.getElementById('gs-msg-results');r.innerHTML='搜索中...';
+  if(_gsCancel){_gsCancel=1;await new Promise(rr=>setTimeout(rr,100))} // cancel previous
+  _gsCancel=0;const myCancel=_gsCancel;
+  let results=[];
+  for(const c of S.chatList){
+    if(_gsCancel!==myCancel)return;
+    try{const j=await window.bridge.getMessages(c._u,-1,false);const d=JSON.parse(j);
+      (d.messages||[]).forEach(m=>{const ct=(m.content||'').toLowerCase();
+        if(ct.includes(kw)&&results.length<100)results.push({uid:c._u,name:c.name||c._u,content:m.content||'',time:m.time||0,sender:(m.sender||{}).name||''})});
+    }catch{}
+  }
+  results.sort((a,b)=>b.time-a.time);r.innerHTML='';
+  if(!results.length){r.innerHTML='<div style="color:var(--text3);padding:16px">无结果</div>';return}
+  results.forEach(m=>{const t=new Date(m.time*1000).toLocaleString('zh-CN');const d=document.createElement('div');d.className='sr-item';d.onclick=()=>{selUser(m.uid,m.name,'');closeGenericPanel()};d.style.flexDirection='column';d.style.alignItems='flex-start';
+    d.innerHTML=`<div style="font-size:11px;color:var(--accent);font-weight:600">${m.sender} · ${m.name||m.uid} · ${t}</div><div style="font-size:13px;margin-top:2px;color:var(--text1)">${esc(m.content.substring(0,100))}</div>`;r.appendChild(d)});
+}
+
+function filterMsgSearch(){
+  const q=document.getElementById('msg-search-input').value.trim().toLowerCase();
+  if(!q){renderMsgs();return;}
+  const a=document.getElementById('msg-area');a.innerHTML='';
+  const filtered=S.msgs.filter(m=>{
+    const ct=(m.content||'').toLowerCase();
+    const sn=((m.sender||{}).name||'').toLowerCase();
+    return ct.includes(q)||sn.includes(q);
+  });
+  const tm=S.config?.theme?.timeMode||0, tg=(S.config?.theme?.timeGap||3)*60;
+  let ld='',lt=0;filtered.forEach(m=>{
+    const su=String((m.sender||{}).uid||'');const sn=(m.sender||{}).name||'?';const im=su===S.myUid;
+    const ct=m.content||'';const ts=m.time||0;const dt=new Date(ts*1000);
+    const ds=dt.toLocaleDateString('zh-CN',{month:'short',day:'numeric'});
+    if(ds!==ld){ld=ds;lt=0;const dv=document.createElement('div');dv.className='msg-time-divider';dv.innerHTML=`<span>${dt.toLocaleDateString('zh-CN')} ${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>`;a.appendChild(dv)}
+    else if(tm===0||(lt>0&&ts-lt>=tg)){const dv=document.createElement('div');dv.className='msg-time-divider';dv.innerHTML=`<span>${dt.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span>`;a.appendChild(dv)}
+    lt=ts;const r=document.createElement('div');r.className='msg-row '+(im?'me':'other');
+    const ph=document.createElement('div');ph.className='msg-avatar-placeholder';r.appendChild(ph);
+    const b=document.createElement('div');b.className='msg-bubble';
+    b.innerHTML=`${!im?`<span style="font-size:11px;font-weight:600;color:var(--accent)">${sn}:</span> `:''}${esc(ct)}`;
+    r.appendChild(b);const ph2=document.createElement('div');ph2.className='msg-avatar-placeholder';r.appendChild(ph2);
+    a.appendChild(r);
+  });
+  if(!filtered.length)a.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">No results</div>';
+}
+
+// ═══ SEND ═══
+async function doSendMsg(){
+  const inp=document.getElementById('msg-input');const text=inp.value.trim();
+  if(!text||!S.curUid)return;
+  const pm={id:0,content:text,sender:{uid:S.myUid,name:S.myName},time:Math.floor(Date.now()/1000)};
+  S.msgs.push(pm);renderMsgs();inp.value='';updateSendBtn();
+  document.getElementById('msg-area').scrollTop=document.getElementById('msg-area').scrollHeight;
+  const r=await window.bridge.sendMessage(S.curUid,text);
+  if(!r.ok){S.msgs=S.msgs.filter(m=>m!==pm);renderMsgs();toast('Send failed')}
+  // On success: keep optimistic msg, server refresh will silently update IDs
+}
+
+// ═══ WS ═══
+function onWSMessage(sUid,content,sName,ts){
+  if(sUid===S.curUid){
+    S.msgs.push({id:0,content,sender:{uid:sUid,name:sName},time:ts||Math.floor(Date.now()/1000)});
+    renderMsgs();
+    document.getElementById('msg-area').scrollTop=document.getElementById('msg-area').scrollHeight;
+    // Background refresh to update cache and get real message IDs from server
+    setTimeout(()=>loadMsgsDelta(sUid),500);
+  }
+  doRefreshChatList();
+  const c=S.config;if(c?.notification?.sound_enabled){if(c.notification.sound_type==='mp3'&&c.notification.sound_file)window.bridge.playSound(c.notification.sound_file);else window.bridge.playSound('')}
+}
+
+// ═══ SEARCH ═══
+function toggleSearchPanel(show){const p=document.getElementById('search-panel');if(show===!1)p.classList.remove('open');else{p.classList.toggle('open');if(p.classList.contains('open'))document.getElementById('sr-input').focus()}}
+async function doSearch(){
+  const kw=document.getElementById('sr-input').value.trim();if(!kw)return;
+  const j=await window.bridge.searchUsers(kw);const users=JSON.parse(j);const r=document.getElementById('sr-results');r.innerHTML='';
+  if(!users.length){r.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">未找到用户</div>';return}
+  users.forEach(u=>{const d=document.createElement('div');d.className='sr-item';d.onclick=()=>{selUser(String(u.uid),u.name||'',u.color||'');toggleSearchPanel(!1)};const uid=String(u.uid);d.innerHTML=`<div class="sri-avt" id="sri-avt-${uid}">${S.avatarCache[uid]?`<img src="${S.avatarCache[uid]}">`:`<span>${(u.name||uid).substring(0,2)}</span>`}</div><div class="sri-info"><div class="sri-name">${u.name||uid}</div><div class="sri-uid">UID:${uid}</div></div>`;r.appendChild(d);if(!S.avatarCache[uid])window.bridge.requestAvatar(uid).then(p=>{if(p)S.avatarCache[uid]=p})});
+}
+
+// ═══ SETTINGS (now in separate windows via IPC) ═══
+function showPanel(title,html){
+  const ov=document.getElementById('generic-overlay'),t=document.getElementById('generic-title'),b=document.getElementById('generic-body');
+  t.innerHTML=title;b.innerHTML=html;ov.classList.add('show');
+}
+function getSettingsHTML(){
+  const c=S.config||{},l=c.luogu||{},srv=c.server||{},n=c.notification||{},th=c.theme||{};
+  return`<div class="panel-tabs"><button class="panel-tab active" onclick="switchTab('s-login',this)">🔑 登录</button><button class="panel-tab" onclick="switchTab('s-notif',this)">🔔 通知</button><button class="panel-tab" onclick="switchTab('s-theme',this)">🎨 外观</button></div>
+<div id="s-login"><div class="form-group"><label class="form-label">UID</label><input id="cfg-uid" type="text" value="${l.user_id||''}" placeholder="输入 UID"></div>
+<div class="form-group"><label class="form-label">Cookie</label><textarea id="cfg-cookie" style="min-height:50px">${l.cookie||''}</textarea><div class="form-hint">自动转换格式: _uid=xxx; __client_id=xxx</div></div>
+<div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="doTestLogin()">测试登录</button><button class="btn btn-secondary btn-sm" onclick="saveLogin()">保存</button></div>
+<div id="login-result" style="margin-top:8px;font-size:12px"></div>
+<div class="form-group" style="margin-top:12px"><label class="form-label">Worker URL</label><input id="cfg-server-url" type="text" value="${srv.url||''}"></div>
+<div class="form-hint">今日: <span id="sv-rem" style="color:var(--accent);font-weight:600">50</span> / <span id="sv-total">50</span></div></div>
+<div id="s-notif" style="display:none"><div class="form-row"><label>启用弹窗</label><div class="toggle ${n.enabled!==!1?'on':''}" id="cfg-npopup" onclick="toggleSwitch(this,'cfg-npopup-v')"></div><input type="hidden" id="cfg-npopup-v" value="${n.enabled!==!1}"></div>
+<div class="form-row"><label>启用声音</label><div class="toggle ${n.sound_enabled!==!1?'on':''}" id="cfg-nsound" onclick="toggleSwitch(this,'cfg-nsound-v')"></div><input type="hidden" id="cfg-nsound-v" value="${n.sound_enabled!==!1}"></div>
+<div class="form-row"><label>声音类型</label><select id="cfg-stype"><option value="system" ${n.sound_type==='system'?'selected':''}>系统</option><option value="mp3" ${n.sound_type==='mp3'?'selected':''}>MP3</option></select></div>
+<div class="form-row"><label>MP3路径</label><input id="cfg-sfile" type="text" value="${n.sound_file||''}"></div>
+<div class="form-row"><label>弹窗模式</label><select id="cfg-pmode"><option value="ai" ${n.popup_mode==='ai'?'selected':''}>AI判断</option><option value="all" ${n.popup_mode==='all'?'selected':''}>全部</option><option value="none" ${n.popup_mode==='none'?'selected':''}>关闭</option></select></div>
+<div class="form-row"><label>前缀</label><input id="cfg-pprefix" type="text" value="${n.popup_prefix||'提示：'}"></div>
+<div class="form-row"><label>后缀</label><input id="cfg-psuffix" type="text" value="${n.popup_suffix||'。'}"></div>
+<button class="btn btn-primary btn-sm" onclick="saveNotif()">保存</button></div>
+<div id="s-theme" style="display:none"><div class="form-row"><label>主题</label><select id="cfg-theme-mode"><option value="0" ${th.mode===0?'selected':''}>浅色</option><option value="1" ${th.mode===1?'selected':''}>深色</option><option value="2" ${th.mode===2?'selected':''}>跟随系统</option></select></div>
+<div class="form-row"><label>强调色</label><input id="cfg-accent" type="color" value="${th.accent||'#6366F1'}"></div>
+<div class="form-row"><label>头像圆形</label><div class="toggle ${th.avatar_rounded?'on':''}" id="cfg-avatar-r" onclick="toggleSwitch(this,'cfg-avatar-r-v')"></div><input type="hidden" id="cfg-avatar-r-v" value="${th.avatar_rounded?'true':'false'}"></div>
+<button class="btn btn-primary btn-sm" onclick="saveTheme()">应用</button></div>`;
+}
+function getAISettingsHTML(){
+  const c=S.config||{},ai=c.ai||{},custom=ai.custom||{},modes=c.modes||{},ar=c.auto_reply||{},bg=c.background||{};
+  return`<div class="panel-tabs"><button class="panel-tab active" onclick="switchAITab('ai-main',this)">🤖 基础</button><button class="panel-tab" onclick="switchAITab('ai-custom',this)">🔧 自定义</button><button class="panel-tab" onclick="switchAITab('ai-modes',this)">📋 模式</button><button class="panel-tab" onclick="switchAITab('ai-ar',this)">↩ 自动回复</button><button class="panel-tab" onclick="switchAITab('ai-bg',this)">📜 背景</button></div>
+<div id="ai-main"><div class="form-row"><label>启用AI</label><div class="toggle ${ai.enabled?'on':''}" id="cfg-ai-on" onclick="toggleSwitch(this,'cfg-ai-on-v')"></div><input type="hidden" id="cfg-ai-on-v" value="${ai.enabled?'true':'false'}"></div>
+<div class="form-row"><label>默认AI</label><div class="toggle ${ai.default!==!1?'on':''}" id="cfg-ai-def" onclick="toggleSwitch(this,'cfg-ai-def-v')"></div><input type="hidden" id="cfg-ai-def-v" value="${ai.default!==!1?'true':'false'}"></div>
+<div class="form-row"><label>关键词</label><input id="cfg-ai-kw" type="text" value="${ai.important_keyword||'zhl重要信息'}"></div>
+<div class="form-group"><label class="form-label">系统提示词</label><textarea id="cfg-ai-sp" style="min-height:60px">${ai.system_prompt||''}</textarea></div>
+<div class="form-group"><label class="form-label">检测模板</label><textarea id="cfg-ai-qt" style="min-height:80px">${ai.question_template||''}</textarea></div>
+<button class="btn btn-primary btn-sm" onclick="saveAI()">保存AI设置</button></div>
+<div id="ai-custom" style="display:none"><div class="form-group"><label class="form-label">API URL</label><input id="cfg-cust-url" type="text" value="${custom.base_url||''}" placeholder="https://api.openai.com/v1"></div>
+<div class="form-group"><label class="form-label">API Key</label><input id="cfg-cust-key" type="password" value="${custom.api_key||''}" placeholder="sk-..."></div>
+<div class="form-group"><label class="form-label">模型</label><input id="cfg-cust-model" type="text" value="${custom.model||''}" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label class="form-label">系统提示词</label><textarea id="cfg-cust-sp">${custom.custom_system_prompt||''}</textarea></div>
+<button class="btn btn-primary btn-sm" onclick="saveCustomAI()">保存自定义AI</button></div>
+<div id="ai-modes" style="display:none"><div class="form-group"><label class="form-label">上课模式</label><input id="cfg-mc-name" value="${modes.class?.name||'上课模式'}"><input id="cfg-mc-icon" value="${modes.class?.icon||'📖'}" style="margin-top:4px" placeholder="图标"><textarea id="cfg-mc-prompt" style="margin-top:4px">${modes.class?.prompt||''}</textarea></div>
+<div class="form-group"><label class="form-label">下课模式</label><input id="cfg-mf-name" value="${modes.free?.name||'下课模式'}"><input id="cfg-mf-icon" value="${modes.free?.icon||'🎮'}" style="margin-top:4px" placeholder="图标"><textarea id="cfg-mf-prompt" style="margin-top:4px">${modes.free?.prompt||''}</textarea></div>
+<button class="btn btn-primary btn-sm" onclick="saveModes()">保存模式</button></div>
+<div id="ai-ar" style="display:none"><div class="form-row"><label>启用自动回复</label><div class="toggle ${ar.enabled?'on':''}" id="cfg-ar-on" onclick="toggleSwitch(this,'cfg-ar-on-v')"></div><input type="hidden" id="cfg-ar-on-v" value="${ar.enabled?'true':'false'}"></div>
+<div class="form-row"><label>触发关键词</label><input id="cfg-ar-kw" value="${ar.keyword||'Zhl需要回复'}"></div>
+<div class="form-group"><label class="form-label">系统提示词</label><textarea id="cfg-ar-sp">${ar.system_prompt||''}</textarea></div>
+<div class="form-group"><label class="form-label">检查模板</label><textarea id="cfg-ar-cq">${ar.check_question||''}</textarea></div>
+<div class="form-group"><label class="form-label">回复模板</label><textarea id="cfg-ar-qt">${ar.question_template||''}</textarea></div>
+<button class="btn btn-primary btn-sm" onclick="saveAR()">保存自动回复</button></div>
+<div id="ai-bg" style="display:none"><div class="form-row"><label>启用背景</label><div class="toggle ${bg.enabled?'on':''}" id="cfg-bg-on" onclick="toggleSwitch(this,'cfg-bg-on-v')"></div><input type="hidden" id="cfg-bg-on-v" value="${bg.enabled?'true':'false'}"></div>
+<div class="form-row"><label>模式</label><select id="cfg-bg-mode"><option value="conversation" ${bg.mode==='conversation'?'selected':''}>当前对话</option><option value="recent" ${bg.mode==='recent'?'selected':''}>最近所有</option></select></div>
+<div class="form-row"><label>最大条数</label><input id="cfg-bg-max" type="number" value="${bg.max_messages||20}" min="1"></div>
+<div class="form-row"><label>最大字符</label><input id="cfg-bg-chars" type="number" value="${bg.max_chars||2000}" min="100"></div>
+<button class="btn btn-primary btn-sm" onclick="saveBG()">保存</button></div>`;
+}
+function switchTab(id,btn){document.querySelectorAll('#generic-body .panel-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const ids=['s-login','s-notif','s-theme'];ids.forEach(i=>document.getElementById(i)&&(document.getElementById(i).style.display=i===id?'':'none'))}
+function switchAITab(id,btn){document.querySelectorAll('#generic-body .panel-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const ids=['ai-main','ai-custom','ai-modes','ai-ar','ai-bg'];ids.forEach(i=>{const el=document.getElementById(i);if(el)el.style.display=i===id?'':'none'})}
+
+// ═══ SAVE SETTINGS ═══
+async function doTestLogin(){
+  const uid=document.getElementById('cfg-uid').value.trim(),cookie=document.getElementById('cfg-cookie').value.trim();
+  const r=document.getElementById('login-result');r.textContent='测试中...';r.style.color='var(--text2)';
+  const d=await window.bridge.testLogin(uid,cookie);
+  r.innerHTML=d.ok?`<span style="color:var(--green)">✅ ${d.name} (UID:${d.uid})</span>`:`<span style="color:var(--red)">❌ ${d.error}</span>`;
+  if(d.ok){S.myUid=d.uid;S.myName=d.name;updateMyInfo();doRefreshChatList();const cfg=await window.bridge.getConfig();S.config=JSON.parse(cfg)}
+}
+async function saveLogin(){
+  const uid=document.getElementById('cfg-uid').value.trim(),cookie=document.getElementById('cfg-cookie').value.trim();
+  const srv=document.getElementById('cfg-server-url').value.trim();
+  if(uid||cookie)await window.bridge.setCookieFormat(uid,cookie||uid);
+  if(srv!==undefined)await window.bridge.saveConfig(JSON.stringify({server:{url:srv}}));
+  toast('已保存');closeGenericPanel()
+}
+async function saveNotif(){
+  await window.bridge.saveConfig(JSON.stringify({notification:{enabled:document.getElementById('cfg-npopup-v').value==='true',sound_enabled:document.getElementById('cfg-nsound-v').value==='true',sound_type:document.getElementById('cfg-stype').value,sound_file:document.getElementById('cfg-sfile').value.trim(),popup_mode:document.getElementById('cfg-pmode').value,popup_prefix:document.getElementById('cfg-pprefix').value.trim(),popup_suffix:document.getElementById('cfg-psuffix').value.trim()}}));
+  toast('已保存')
+}
+async function saveTheme(){
+  const mode=parseInt(document.getElementById('cfg-theme-mode').value),accent=document.getElementById('cfg-accent').value;
+  await window.bridge.saveConfig(JSON.stringify({theme:{mode,accent}}));
+  document.body.classList.toggle('dark',mode===1);document.documentElement.style.setProperty('--accent',accent);toast('已应用')
+}
+async function saveAI(){
+  await window.bridge.saveConfig(JSON.stringify({ai:{enabled:document.getElementById('cfg-ai-on-v').value==='true',default:document.getElementById('cfg-ai-def-v').value==='true',important_keyword:document.getElementById('cfg-ai-kw').value.trim()||'zhl重要信息',system_prompt:document.getElementById('cfg-ai-sp').value.trim(),question_template:document.getElementById('cfg-ai-qt').value.trim()}}));
+  toast('已保存')
+}
+async function saveCustomAI(){
+  await window.bridge.saveConfig(JSON.stringify({ai:{custom:{base_url:document.getElementById('cfg-cust-url').value.trim(),api_key:document.getElementById('cfg-cust-key').value.trim(),model:document.getElementById('cfg-cust-model').value.trim(),custom_system_prompt:document.getElementById('cfg-cust-sp').value.trim()}}}));
+  toast('已保存')
+}
+async function saveModes(){
+  await window.bridge.saveConfig(JSON.stringify({modes:{class:{name:document.getElementById('cfg-mc-name').value.trim()||'上课模式',icon:document.getElementById('cfg-mc-icon').value.trim()||'📖',prompt:document.getElementById('cfg-mc-prompt').value.trim()},free:{name:document.getElementById('cfg-mf-name').value.trim()||'下课模式',icon:document.getElementById('cfg-mf-icon').value.trim()||'🎮',prompt:document.getElementById('cfg-mf-prompt').value.trim()}}}));
+  toast('已保存')
+}
+async function saveAR(){
+  await window.bridge.saveConfig(JSON.stringify({auto_reply:{enabled:document.getElementById('cfg-ar-on-v').value==='true',keyword:document.getElementById('cfg-ar-kw').value.trim()||'Zhl需要回复',system_prompt:document.getElementById('cfg-ar-sp').value.trim(),check_question:document.getElementById('cfg-ar-cq').value.trim(),question_template:document.getElementById('cfg-ar-qt').value.trim()}}));
+  toast('已保存')
+}
+async function saveBG(){
+  await window.bridge.saveConfig(JSON.stringify({background:{enabled:document.getElementById('cfg-bg-on-v').value==='true',mode:document.getElementById('cfg-bg-mode').value,max_messages:parseInt(document.getElementById('cfg-bg-max').value)||20,max_chars:parseInt(document.getElementById('cfg-bg-chars').value)||2000}}));
+  toast('已保存')
+}
+
+// ═══ RESIZE HANDLE ═══
+function setupResizeHandle(){
+  const h=document.getElementById('resize-handle');const inp=document.getElementById('input-area');
+  let startY=0,startH=0,dragging=!1;
+  h.addEventListener('mousedown',e=>{dragging=!0;startY=e.clientY;startH=inp.offsetHeight;e.preventDefault()});
+  document.addEventListener('mousemove',e=>{if(!dragging)return;const d=e.clientY-startY;const nh=Math.max(100,Math.min(startH-d,400));S.inputH=nh;inp.style.height=nh+'px';document.getElementById('msg-input').style.minHeight=(nh-60)+'px'});
+  document.addEventListener('mouseup',()=>{if(dragging){dragging=!1;window.bridge.saveConfig(JSON.stringify({theme:{input_height:S.inputH}}))}});
+  h.addEventListener('dblclick',()=>{S.inputH=140;inp.style.height='140px';document.getElementById('msg-input').style.minHeight='44px';window.bridge.saveConfig(JSON.stringify({theme:{input_height:140}}))});
+}
+
+// ═══ AVATAR REFRESH ═══
+function refreshAvatars(uid){
+  const p=S.avatarCache[uid];if(!p)return;
+  if(uid===S.myUid)document.getElementById('side-avatar').innerHTML=`<img src="${p}">`;
+  if(uid===S.curUid)document.getElementById('ch-avatar').innerHTML=`<img src="${p}">`;
+  const els=document.querySelectorAll(`[id^="ci-avt-${uid}"],[id^="ma-${uid}"],[id^="sri-avt-${uid}"]`);
+  els.forEach(el=>{el.innerHTML=`<img src="${p}">`})
+}
+
+// ═══ APP LOAD ═══
+document.addEventListener('DOMContentLoaded',init);
+window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',e=>{if(S.config?.theme?.mode===2){document.body.classList.toggle('dark',e.matches)}});
+</script></body></html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head><meta charset="UTF-8"><title>新消息</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  background:transparent;overflow:hidden;user-select:none;-webkit-app-region:no-drag;
+  display:flex;align-items:flex-end;justify-content:center;
+  height:100vh;padding:10px;
+  animation:fadeIn .35s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes exitAnim{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}
+
+.popup{background:linear-gradient(135deg,rgba(26,28,52,0.96),rgba(18,22,44,0.96));
+  border:1px solid rgba(99,102,241,0.25);border-radius:18px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.45),0 0 24px rgba(99,102,241,0.12);
+  backdrop-filter:blur(24px);color:#e4e8f4;position:relative;
+  padding:16px;display:flex;flex-direction:column;gap:8px;
+  transition:height .26s cubic-bezier(.4,0,.2,1);
+  min-height:110px}
+.popup.expanded{min-height:230px}
+
+/* Header */
+.phead{display:flex;align-items:center;gap:12px}
+.pavatar{width:44px;height:44px;border-radius:22px;flex-shrink:0;
+  background:linear-gradient(135deg,#6366f1,#06b6d4);
+  display:flex;align-items:center;justify-content:center;color:white;
+  font-weight:700;font-size:16px;overflow:hidden}
+.pavatar img{width:100%;height:100%;object-fit:cover}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:14px;font-weight:600;color:#c8ccf0;line-height:1.2}
+.pbadge{display:inline-flex;align-items:center;gap:3px;margin-top:2px;
+  font-size:10px;padding:1px 8px;border-radius:4px;
+  background:rgba(239,68,68,0.15);color:#f87171;font-weight:600}
+
+/* Toggle buttons */
+.ptools{display:flex;flex-direction:column;gap:4px;flex-shrink:0}
+.ptbtn{width:28px;height:28px;border-radius:14px;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;transition:all .2s;outline:none}
+.pt-expand{background:rgba(255,255,255,0.04);color:#8a94b8}
+.pt-expand:hover{background:rgba(255,255,255,0.1);color:#c8ccf0}
+.pt-close{background:rgba(255,255,255,0.04);color:#8a94b8}
+.pt-close:hover{background:#ef4444;color:white}
+
+/* Content */
+.pcontent{font-size:13px;color:#b0b8d8;line-height:1.55;word-break:break-word;
+  max-height:44px;overflow:hidden;transition:max-height .26s ease}
+.popup.expanded .pcontent{max-height:200px}
+.ptip{margin-top:4px;padding:8px 12px;background:rgba(99,102,241,0.06);
+  border-radius:10px;font-size:12px;color:#9ca8e0;line-height:1.5;
+  border:1px solid rgba(99,102,241,0.1)}
+.ptip .tip-label{font-size:10px;color:rgba(139,146,207,0.7);font-weight:600;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+
+/* Actions */
+.pactions{display:flex;gap:8px;margin-top:2px}
+.pact-btn{flex:1;padding:7px 12px;border:none;border-radius:10px;
+  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .2s;display:flex;align-items:center;justify-content:center;gap:4px}
+.pact-small{background:rgba(99,102,241,0.12);color:#a5b4fc}
+.pact-small:hover{background:rgba(99,102,241,0.25);transform:translateY(-1px)}
+.pact-main{background:linear-gradient(135deg,#6366f1,#06b6d4);color:white}
+.pact-main:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(99,102,241,.35)}
+
+/* Reply area (shown in expanded) */
+.preply-wrap{display:none;flex-direction:column;gap:6px;margin-top:2px}
+.popup.expanded .preply-wrap{display:flex}
+.preply-input{width:100%;min-height:34px;max-height:80px;resize:none;
+  border:1px solid rgba(99,102,241,0.15);border-radius:10px;
+  padding:8px 12px;font-size:12px;font-family:inherit;color:#e4e8f4;
+  background:rgba(255,255,255,0.03);outline:none;line-height:1.4}
+.preply-input:focus{border-color:rgba(99,102,241,0.35);background:rgba(99,102,241,0.04)}
+.preply-send{align-self:flex-end;padding:5px 16px;border:none;border-radius:8px;
+  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+  background:linear-gradient(135deg,#6366f1,#818cf8);color:white;
+  transition:all .2s}
+.preply-send:hover{box-shadow:0 2px 8px rgba(99,102,241,.3);transform:translateY(-1px)}
+.preply-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.preply-result{font-size:11px;color:#10b981;text-align:right}
+.preply-result.err{color:#f87171}
+</style></head>
+<body>
+<div class="popup" id="popup">
+  <div class="phead">
+    <div class="pavatar" id="pavat"></div>
+    <div class="pinfo">
+      <div class="pname" id="pname">—</div>
+      <div class="pbadge">⚡ 重要消息</div>
+    </div>
+    <div class="ptools">
+      <button class="ptbtn pt-expand" id="ptg" title="展开/收起" onclick="doToggle()">+</button>
+      <button class="ptbtn pt-close" title="关闭" onclick="doClose()">×</button>
+    </div>
+  </div>
+  <div class="pcontent" id="pcont">—</div>
+  <div class="ptip" id="ptip" style="display:none">
+    <div class="tip-label">AI 分析</div>
+    <div id="ptip-txt"></div>
+  </div>
+  <div class="pactions">
+    <button class="pact-btn pact-small" onclick="doSmallWindow()">小窗回复</button>
+    <button class="pact-btn pact-main" onclick="doBigWindow()">大窗回复</button>
+  </div>
+  <div class="preply-wrap">
+    <textarea class="preply-input" id="prinput" placeholder="输入快捷回复..." rows="2"></textarea>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div class="preply-result" id="prresult"></div>
+      <button class="preply-send" id="prsend" onclick="doSendReply()">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Receive data from main process
+let data = { uid: '', name: '未知', content: '', tip: '' };
+let expanded = false;
+let autoCloseTimer = null;
+let exitAnimating = false;
+
+async function init() {
+  // Listen for data
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'notify-data') {
+      data = e.data;
+      render();
+    }
+  });
+
+  // Request data from parent (main process sends it after load)
+  // The main process will postMessage with the notify data
+  // We also try IPC as fallback for preload
+  try {
+    if (window.bridge && window.bridge._popupData) {
+      const d = await window.bridge._popupData();
+      if (d) { data = d; render(); }
+    }
+  } catch(e) {}
+
+  // Default: try to parse from URL hash
+  try {
+    const h = decodeURIComponent(location.hash.replace('#', ''));
+    if (h) { data = JSON.parse(h); render(); }
+  } catch(e) {}
+
+  // Start auto-close timer
+  startAutoClose();
+}
+
+function render() {
+  document.getElementById('pname').textContent = data.name || '未知';
+  document.getElementById('pcont').textContent = data.content || '';
+  
+  // Avatar
+  const av = document.getElementById('pavat');
+  const uid = data.uid || '0';
+  if (uid) {
+    av.innerHTML = `<img src="https://cdn.luogu.com.cn/upload/usericon/${uid}.png" 
+      onerror="this.style.display='none';this.parentElement.textContent='${(data.name||'?').substring(0,2)}'">`;
+  }
+
+  // AI tip
+  if (data.tip) {
+    document.getElementById('ptip').style.display = '';
+    document.getElementById('ptip-txt').textContent = data.tip;
+  }
+
+  // Update send button
+  updateSendBtn();
+}
+
+function startAutoClose() {
+  stopAutoClose();
+  autoCloseTimer = setTimeout(() => doClose(), 8000);
+}
+function stopAutoClose() {
+  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null; }
+}
+
+function doToggle() {
+  expanded = !expanded;
+  const p = document.getElementById('popup');
+  const btn = document.getElementById('ptg');
+  if (expanded) {
+    p.classList.add('expanded');
+    btn.textContent = '−';
+    stopAutoClose(); // Pause auto-close when expanded
+  } else {
+    p.classList.remove('expanded');
+    btn.textContent = '+';
+    startAutoClose();
+  }
+}
+
+function doClose() {
+  if (exitAnimating) return;
+  exitAnimating = true;
+  document.body.style.animation = 'exitAnim 0.3s ease forwards';
+  setTimeout(() => {
+    try { window.close(); } catch(e) {}
+  }, 300);
+}
+
+function doSmallWindow() {
+  doClose();
+  // Focus main window and open chat window for this user
+  try { window.opener?.postMessage({ type: 'open-small-chat', uid: data.uid, name: data.name }, '*'); } catch(e) {}
+  // Also try bridge
+  try { if (window.bridge) window.bridge.popupOpenChatWin(data.uid, data.name); } catch(e) {}
+}
+
+function doBigWindow() {
+  doClose();
+  try { window.opener?.postMessage({ type: 'focus-chat', uid: data.uid, name: data.name }, '*'); } catch(e) {}
+  try { if (window.bridge) window.bridge.popupFocusChat(data.uid, data.name); } catch(e) {}
+}
+
+async function doSendReply() {
+  const input = document.getElementById('prinput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  const btn = document.getElementById('prsend');
+  const res = document.getElementById('prresult');
+  btn.disabled = true;
+  btn.textContent = '发送中...';
+  res.className = 'preply-result';
+  res.textContent = '';
+
+  try {
+    if (window.bridge) {
+      const r = await window.bridge.popupSendReply(data.uid, content);
+      if (r && r.ok) {
+        res.textContent = '已发送 ✓';
+        input.value = '';
+        updateSendBtn();
+      } else {
+        res.className = 'preply-result err';
+        res.textContent = '发送失败';
+      }
+    }
+  } catch(e) {
+    res.className = 'preply-result err';
+    res.textContent = '错误: ' + (e.message || '');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '发送';
+}
+
+function updateSendBtn() {
+  const btn = document.getElementById('prsend');
+  const input = document.getElementById('prinput');
+  btn.disabled = !input.value.trim();
+}
+
+document.getElementById('prinput').addEventListener('input', updateSendBtn);
+
+// Mouse enter/leave to pause/resume auto-close
+document.getElementById('popup').addEventListener('mouseenter', () => {
+  if (!expanded) stopAutoClose();
+});
+document.getElementById('popup').addEventListener('mouseleave', () => {
+  if (!expanded) startAutoClose();
+});
+
+window.addEventListener('DOMContentLoaded', init);
+</script></body></html>
